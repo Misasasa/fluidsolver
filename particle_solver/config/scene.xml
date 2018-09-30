@@ -1,0 +1,62 @@
+<Fluid>
+	<AccelLimit>	1500.0		</AccelLimit>
+	<VelLimit>		100		</VelLimit>
+	<Gravity>	0,0,0		</Gravity>
+	<VolMin> -50, -20, -50 </VolMin>
+	<VolMax> 50,  60,  50 </VolMax>
+</Fluid>
+
+<MultiScene id="2">
+
+	<Name>		Test 	</Name>
+
+	<MaxPNum> 500000 </MaxPNum>
+	<MaxTypeNum> 3 </MaxTypeNum>
+	<SimScale>		0.01		</SimScale>
+	<DT>			0.0003 </DT>
+	<Radius> 0.5 </Radius>
+	<SmoothRatio> 2.6 </SmoothRatio>
+	
+	<Viscosity>	 1	</Viscosity>
+	<RestDensity> 1000 </RestDensity>
+
+	<BoundStiff>	50000.0	</BoundStiff>
+	<SoftBoundMin>	-30,   0, -30 </SoftBoundMin>
+	<SoftBoundMax>	 30, 100,  30 </SoftBoundMax>
+	
+	<DensityRatio> 1,   1,   1  </DensityRatio>
+	<ViscRatio>    1,   1,   1   </ViscRatio>
+
+	<Vol>
+		<VolMin>	-10,  2, -10	</VolMin>
+		<VolMax>	10,  35,  10	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+	</Vol>
+    
+    <!--Vol>
+    	<VolMin>	-7,   32, -7	</VolMin>
+		<VolMax>   7,  46,  7	</VolMax>
+		<VolFrac>  0,  1,  0  </VolFrac>
+    </Vol-->
+	
+	
+	<SurfaceTensionK> 0 </SurfaceTensionK>
+	<SurfaceTensionFluidC> 0 </SurfaceTensionFluidC>
+	<FBlending> 1 </FBlending>
+	<Pairwise_k> 1.8 </Pairwise_k>
+	<Pairwise_c> 50000 </Pairwise_c>
+
+</MultiScene>
+
+<BoundInfo id="1">
+	<Viscosity>	100.0		</Viscosity>
+	<RestDensity>	600.0		</RestDensity>
+	<Mass>		0.00010543	</Mass>
+	<BoundStiff>	5000	</BoundStiff>
+</BoundInfo>
+
+
+
+
+
+
