@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CatTimer.h"
+#include "cpTimer.h"
 #include "geometry.h"
 #include "glUtils.h"
-#include "catXMLhelper.h"
+#include "cpXMLhelper.h"

@@ -2,6 +2,7 @@
 
 #include "Interface/SolverGUI.h"
 #include "solver/pbfsolver.h"
+#include "grid.h"
 
 using namespace catpaw;
 
@@ -19,7 +20,7 @@ void SetupPBFSolver() {
 }
 
 //unit test
-int main(int argc, char **argv) {
+int main_(int argc, char **argv) {
 
 	solverGUI.Initialize(argc, argv);
 	
@@ -28,4 +29,12 @@ int main(int argc, char **argv) {
 	solverGUI.Run();
 
 	return 0;
+}
+
+int main() {
+	GridSolver gs;
+	gs.loadConfig();
+	gs.allocate();
+	gs.makeRHS();
+	gs.solve();
 }

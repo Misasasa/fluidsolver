@@ -1,6 +1,6 @@
 
 
-#include <catpaw/CatTimer.h>
+#include <catpaw/cpTimer.h>
 
 
 #include <cuda.h>

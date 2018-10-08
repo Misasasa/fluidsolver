@@ -263,14 +263,6 @@ void RotateY(cfloat3& a, float b);
 void RotateZ(cfloat3& a, float b);
 void RotateXYZ(cfloat3& a, cfloat3& xyz);
 
-class Grid {
-protected:
-	float cellsize;
-	cint3 res;
-	cfloat3 xmin, xmax;
-	float* data;
-
-};
 
 
 

@@ -4,7 +4,7 @@
 #include "host_defines.h"
 
 #include "pbfsolver.h"
-#include "catpaw/catXMLHelper.h"
+#include "catpaw/cpXMLHelper.h"
 
 
 extern SimParam hParam;

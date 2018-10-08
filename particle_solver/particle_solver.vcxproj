@@ -167,11 +167,12 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="catpaw\BI2Reader.cpp" />
-    <ClCompile Include="catpaw\catXMLHelper.cpp" />
+    <ClCompile Include="catpaw\cpXMLHelper.cpp" />
     <ClCompile Include="catpaw\Functions.cpp" />
     <ClCompile Include="catpaw\geometry.cpp" />
     <ClCompile Include="catpaw\glUtils.cpp" />
     <ClCompile Include="catpaw\objbuilder.cpp" />
+    <ClCompile Include="grid.cpp" />
     <ClCompile Include="Interface\RenderObject.cpp" />
     <ClCompile Include="Interface\SolverGUI.cpp" />
     <ClCompile Include="main.cpp" />
@@ -182,12 +183,14 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="solver\setupscene.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="catpaw\CatTimer.h" />
-    <ClInclude Include="catpaw\catXMLhelper.h" />
+    <ClInclude Include="catpaw\cpToolBox.h" />
+    <ClInclude Include="catpaw\cpTimer.h" />
+    <ClInclude Include="catpaw\cpXMLhelper.h" />
     <ClInclude Include="catpaw\geometry.h" />
     <ClInclude Include="catpaw\glUtils.h" />
     <ClInclude Include="catpaw\objbuilder.h" />
     <ClInclude Include="catpaw\svd3_cuda.h" />
+    <ClInclude Include="grid.h" />
     <ClInclude Include="Interface\RenderObject.h" />
     <ClInclude Include="Interface\SolverGUI.h" />
     <ClInclude Include="Interface\SolverInfo.h" />

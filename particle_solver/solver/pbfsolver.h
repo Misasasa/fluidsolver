@@ -3,7 +3,7 @@
 
 #include "pbf_gpu.cuh"
 #include "catpaw/objbuilder.h"
-#include "catpaw/catXMLHelper.h"
+#include "catpaw/cpXMLHelper.h"
 
 #define RUN_GPU 0
 #define RUN_CPU 1

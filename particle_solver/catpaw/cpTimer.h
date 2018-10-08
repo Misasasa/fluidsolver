@@ -1,5 +1,5 @@
-#ifndef CatTimer
-#define CatTimer
+#ifndef CPTIMER
+#define CPTIMER
 
 #include <chrono>
 #include <time.h>

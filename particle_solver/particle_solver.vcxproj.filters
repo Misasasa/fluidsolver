@@ -28,9 +28,6 @@
     <ClCompile Include="catpaw\BI2Reader.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
-    <ClCompile Include="catpaw\catXMLHelper.cpp">
-      <Filter>catpaw</Filter>
-    </ClCompile>
     <ClCompile Include="catpaw\Functions.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
@@ -52,11 +49,14 @@
     <ClCompile Include="solver\fluid.cpp">
       <Filter>solver</Filter>
     </ClCompile>
+    <ClCompile Include="grid.cpp">
+      <Filter>solver</Filter>
+    </ClCompile>
+    <ClCompile Include="catpaw\cpXMLHelper.cpp">
+      <Filter>catpaw</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="catpaw\CatTimer.h">
-      <Filter>catpaw</Filter>
-    </ClInclude>
     <ClInclude Include="catpaw\geometry.h">
       <Filter>catpaw</Filter>
     </ClInclude>
@@ -71,9 +71,6 @@
     </ClInclude>
     <ClInclude Include="Interface\SolverInfo.h">
       <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="catpaw\catXMLhelper.h">
-      <Filter>catpaw</Filter>
     </ClInclude>
     <ClInclude Include="catpaw\svd3_cuda.h">
       <Filter>catpaw</Filter>
@@ -92,6 +89,18 @@
     </ClInclude>
     <ClInclude Include="solver\param.h">
       <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="grid.h">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="catpaw\cpTimer.h">
+      <Filter>catpaw</Filter>
+    </ClInclude>
+    <ClInclude Include="catpaw\cpXMLhelper.h">
+      <Filter>catpaw</Filter>
+    </ClInclude>
+    <ClInclude Include="catpaw\cpToolBox.h">
+      <Filter>catpaw</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
