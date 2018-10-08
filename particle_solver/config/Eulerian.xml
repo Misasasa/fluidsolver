@@ -1,3 +1,6 @@
 <Param>
-  <dim>128,64,64</dim>
+  <dim>16,16,16</dim>
+  <h> 1 </h>
+  <dt> 0.0001 </dt>
+  <rho> 1 </rho>
 </Param>

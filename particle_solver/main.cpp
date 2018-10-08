@@ -35,6 +35,9 @@ int main() {
 	GridSolver gs;
 	gs.loadConfig();
 	gs.allocate();
-	gs.makeRHS();
-	gs.solve();
+
+	while (true) {
+		gs.step();
+	}
+	
 }
