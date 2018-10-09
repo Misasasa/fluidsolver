@@ -7,6 +7,8 @@ struct Grid
 	int xlen, ylen, zlen; //cell center dimension
 	int ulen, vlen, wlen; //face dimension
 	int Size, uSize, vSize, wSize;
+	
+	cfloat3 xmin; //coordinates of the low corner
 	scalar h; //cell size
 
 	void setSize(int x, int y, int z) {
@@ -57,12 +59,16 @@ public:
 	void allocate();
 	void mvproduct(scalar* v, scalar* dst);
 	scalar dotproduct(scalar* v1, scalar* v2);
+
+	cfloat3 sampleU(cfloat3 p); //interpolate velocity
+	scalar sampleQ(cfloat3 p, scalar* v); //interpolate cell-centered value
 	
 	void testcase();
 	void divVelocity();
 	void makeRHS();
 	void solve();
 	void updateU();
+	void bodyForce();
 	void advect();
 	void step();
 };

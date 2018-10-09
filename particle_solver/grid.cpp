@@ -229,8 +229,28 @@ void GridSolver::updateU() {
 	}
 }
 
+cfloat3 GridSolver::sampleU(cfloat3 p) {
+
+}
+
 void GridSolver::advect() {
-	//do nothing
+	//semi-lagrangian advection
+	cfloat3 v;
+	//x-component of vel
+	for(int k=0; k<grid.zlen; k++)
+		for(int j=0; j<grid.ylen; j++)
+			for (int i=0; i<grid.ulen; i++) {
+				v.x = u[grid.uId(i,j,k)];
+			}
+
+	//y-component of vel
+
+	//z-component of vel
+
+}
+
+void GridSolver::bodyForce() {
+	
 
 	//gravity
 	for (int i=0; i<grid.xlen; i++)
@@ -242,7 +262,6 @@ void GridSolver::advect() {
 
 void GridSolver::step() {
 	advect();
-	//gs.testcase();
 	makeRHS();
 	solve();
 	updateU();
