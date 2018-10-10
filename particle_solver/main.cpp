@@ -40,4 +40,5 @@ int main() {
 		gs.step();
 	}
 	
+	
 }
