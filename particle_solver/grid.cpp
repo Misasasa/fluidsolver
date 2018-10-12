@@ -116,6 +116,7 @@ void GridSolver::divVelocity() {
 				div += u[grid.uId(i+1,j,k)]-u[grid.uId(i,j,k)];
 				div += v[grid.vId(i,j+1,k)]-v[grid.vId(i,j,k)];
 				div += w[grid.wId(i,j,k+1)]-w[grid.wId(i,j,k)];
+				
 				div /= grid.h;
 				divU[grid.cellId(i,j,k)] = -div;
 				divUsum += div*div;
@@ -136,7 +137,7 @@ void GridSolver::makeRHS() {
 				float rhs = divU[cellid];
 				if (j==0) //near solid!
 					rhs += (0-v[grid.vId(i,j,k)])/grid.h;
-				b[cellid] = rhs * rho / dt;
+				b[cellid] = rhs * rho * grid.h*grid.h / dt;
 				//printf("%f %f\n",b[cellid], divU[cellid]);
 			}
 		}
@@ -162,6 +163,7 @@ void GridSolver::solve() {
 
 	while(true) {
 		mvproduct(q, Aq);
+	
 		rr = dotproduct(r,r);
 		qAq = dotproduct(q, Aq);
 		if (rr==0 || qAq==0) {
@@ -178,6 +180,7 @@ void GridSolver::solve() {
 		
 		beta = dotproduct(r,r) / rr;
 		rabs = 0;
+		
 
 		for (int i=0; i<grid.dimSize; i++) {
 			q[i] = r[i] + beta * q[i];
@@ -185,19 +188,22 @@ void GridSolver::solve() {
 		}
 		rabs/=grid.dimSize;
 		printf("turn %d residual: %f\n", iter, rabs);
-		if(rabs < 0.00001)
+		if(rabs < 0.0000001)
 			break;
 		iter ++;
 	};
 
-	//mvproduct(p, Aq);
-	//for(int i=0; i<grid.Size; i++)
+	mvproduct(p, Aq);
+	//for(int i=0; i<grid.dimSize; i++)
 	//	printf("%f %f\n", Aq[i], b[i]);
 	
 }
 
 void GridSolver::updateU() {
 	float c = dt/rho/grid.h;
+	cfloat3 ucell;
+	float ulenth, maxu = 0;
+
 	for (int k=0; k<grid.dim.z; k++) {
 		for (int j=0; j<grid.dim.y; j++) {
 			for (int i=0; i<grid.dim.x; i++) {	
@@ -209,8 +215,7 @@ void GridSolver::updateU() {
 					u[grid.uId(i,j,k)] -= (p[cellid] - p[grid.cellId(i-1,j,k)])*c;
 
 				if (i==grid.dim.x-1)
-					u[grid.uId(i+1, j, k)] -= (0 - p[cellid])*c;
-				
+					u[grid.uId(i+1, j, k)] -= (0 - p[cellid])*c;	
 
 				if (j==0) // near solid!
 					v[grid.vId(i,j,k)] = 0;
@@ -229,10 +234,20 @@ void GridSolver::updateU() {
 				if (k==grid.dim.z-1)
 					w[grid.wId(i,j,k+1)] -= (0-p[cellid])*c;
 				
-
+				//get max velocity
+				ucell.x = u[grid.uId(i, j, k)]+u[grid.uId(i+1, j, k)]*0.5;
+				ucell.y = v[grid.vId(i,j,k)]+v[grid.vId(i,j+1,k)]*0.5;
+				ucell.z = w[grid.wId(i,j,k)]+w[grid.wId(i,j,k+1)]*0.5;
+				ulenth = sqrt(dot(ucell,ucell));
+				maxu = ulenth>maxu? ulenth : maxu;
 			}
 		}
 	}
+	
+	//update time step size
+	maxu += sqrt(5*grid.h*9.8);
+	//dt = 5*grid.h / maxu;
+	//printf("time step size updated as %f.\n", dt);
 }
 
 cint3 GridSolver::locateCell(cfloat3 p) {
@@ -473,7 +488,7 @@ void GridSolver::bodyForce() {
 	for (int i=0; i<grid.dim.x; i++)
 		for (int j=0; j<grid.dim.y+1; j++)
 			for (int k=0; k<grid.dim.z; k++)
-				v[grid.vId(i, j, k)] += -10 * dt;
+				v[grid.vId(i, j, k)] += -9.8 * dt;
 			
 }
 
@@ -496,7 +511,7 @@ void GridSolver::testcase() {
 }
 
 void GridSolver::step() {
-	advect();
+	//advect();
 	bodyForce();
 	makeRHS();
 	solve();
