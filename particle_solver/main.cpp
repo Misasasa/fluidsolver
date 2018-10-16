@@ -31,14 +31,18 @@ int main_(int argc, char **argv) {
 	return 0;
 }
 
-int main() {
-	GridSolver gs;
-	gs.loadConfig();
-	gs.allocate();
+int main(int argc, char **argv) {
 
-	while (true) {
-		gs.step();
-	}
+	solverGUI.Initialize(argc, argv);
+	//solverGUI.setRenderMode(TRIANGLE_PARTICLE_RENDERER);
+
+	GridSolver gs;
+ 	gs.setup();
+	
+	solverGUI.bindSolver(&gs);
+	solverGUI.setParticlesz(0.001);
+
+	solverGUI.Run();
 	
 	
 }

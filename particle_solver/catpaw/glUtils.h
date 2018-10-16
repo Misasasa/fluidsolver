@@ -14,10 +14,7 @@
 void ExitOnGLError(const char* error_message);
 GLuint LoadShader(const char* filename, GLenum shader_type);
 
-struct vertex {
-	cfloat3 pos;
-	cfloat4 color;
-};
+
 
 class shaderObject {
 private:

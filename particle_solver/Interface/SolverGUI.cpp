@@ -7,20 +7,12 @@
 #include "cuda_runtime.h"
 #endif
 
-bool bTiming = true;
-bool bRec = false;
-int mFrame = 0;
-
-
 
 float window_width  = 1024;
 float window_height = 768;
 
 
 float		light_fov;
-bool	bHelp = false;
-bool    bPause = false;
-
 
 										// Mouse control
 #define DRAG_OFF		0				// mouse states
@@ -35,9 +27,6 @@ int		dragging = 0;
 
 
 extern SolverGUI solverGUI;
-extern PBFSolver* solver;
-
-
 
 //void SolverGUI::drawScene(float* viewmat, bool bShade)
 //{
@@ -234,7 +223,7 @@ void resize(int width, int height)
 
 void SolverGUI::ReSize(int width, int height) {
 
-	camera.SetProjParam(40, (float)width/height, 1.0f, 1000.0f);
+	camera.SetProjParam(40, (float)width/height, 0.01f, 10.0f);
 	camera.ProjectionMat();
 }
 
@@ -243,26 +232,16 @@ void keyboard_func(unsigned char key, int x, int y)
 {
 	solverGUI.keyDown(key);
 }
+
+
 void SolverGUI::keyDown(unsigned char key){
 
 	switch (key) {
-	case 'B': case 'b':
-		/*if (psys->bOutput)
-			printf("stop outputing particle data\n");
-		else
-			printf("start outputing particle data\n");*/
-		//solver->dumpSimulationData();
-		solver->dumpSimulationDataText();
-		break;
-	case 'r':
-		solver->dumpRenderingData();
-		break;
 	case ' ':
-		bPause = !bPause; break;//psys->SetParam ( PMODE, RUN_PAUSE, 0, 8 );	break;		// pause
-
-
-	case 'h': case 'H':	
-		bHelp = !bHelp; break;
+		bPause = !bPause;
+		break;
+	//case 'h': case 'H':	
+	//	bHelp = !bHelp; break;
 
 	case 'a': case 'A':		
 	case 'd': case 'D':		
@@ -275,36 +254,6 @@ void SolverGUI::keyDown(unsigned char key){
 
 	case 'c':
 		PrintCameraParam();
-		break;
-	case 'e':
-		solver->bEmitParticle = !solver->bEmitParticle;
-		if (solver->bEmitParticle)
-			printf("Start to emit particles.\n");
-		else
-			printf("Stop emitting particles.\n");
-		break;
-	case 'f':
-		solver->bReleaseSource = true;
-		break;
-
-	case 'i':
-		//solver->bInjectGas = !solver->bInjectGas;
-		for(int i=0; i<solver->objectvec.size(); i++)
-			solver->objectvec[i].bInjectGas = !solver->objectvec[i].bInjectGas;
-		if (solver->objectvec[0].bInjectGas) {
-			printf("Start to inject gas.\n");
-		}
-		else
-			printf("Stop injecting particles.\n");
-		break;
-	case 'j':
-		for (int i=0; i<solver->objectvec.size(); i++)
-			solver->objectvec[i].bJetGas = !solver->objectvec[i].bJetGas;
-		if (solver->objectvec[0].bJetGas) {
-			printf("Start to jet gas.\n");
-		}
-		else
-			printf("Stop jetting particles.\n");
 		break;
 	case 27:
 		exit(0); break;
@@ -322,6 +271,8 @@ void SolverGUI::keyDown(unsigned char key){
 	default:
 		break;
 	}
+
+	solver->HandleKeyEvent(key);
 }
 
 void SolverGUI::PrintCameraParam() {
@@ -640,7 +591,7 @@ void SolverGUI::InitializeGL(int argc, char** argv) {
 	//#############   Camera Parameters   #############
 	
 	camera.forceup = cfloat3(0, 1, 0);
-	camera.lookat(cfloat3(0, 40, 80), cfloat3(0, 40, -80));
+	camera.lookat(cfloat3(0, 0.45, 1.5), cfloat3(0, 0.35, -0.8));
 	
 
 	//=============  Render Object ==============
@@ -650,7 +601,7 @@ void SolverGUI::InitializeGL(int argc, char** argv) {
 		cubeRO = new CubeRO();
 	if(loadtriangleRO)
 		triangleRO = new TriangleRO();
-	if(drawGeometry)
+	if(bDrawGeometry)
 		geomRO = new GeometryRO();
 
 
@@ -686,37 +637,40 @@ void SolverGUI::Initialize(int argc, char** argv) {
 #endif
 
 	rendermode = PARTICLE_RENDERER;
-	drawGeometry = false;
 	InitializeGL(argc,argv);
 
 	frameNo = 0;
-	vbuffer = new vertex[1];
-	vbuffer[0].pos = cfloat3(0,0,0);
-	vbuffer[0].color = cfloat4(1,1,1,1);
-	pnum = 1;
+
+	//vbuffer = new vertex[1];
+	//vbuffer[0].pos = cfloat3(0,0,0);
+	//vbuffer[0].color = cfloat4(1,1,1,1);
+	//pnum = 1;
 }
 
 void SolverGUI::GetBoundingBox() {
 	//hard code
-	cfloat3 min(-20,0,-20), max(20,50,20);
+	cfloat3 min = solver->domainMin;
+	cfloat3 max = solver->domainMax;
+	boundingBox.vertices.resize(8);
 
-	boundingBox[0].pos.Set(min.x,max.y,min.z);
-	boundingBox[1].pos.Set(max.x,max.y,min.z);
-	boundingBox[2].pos.Set(max.x,max.y,max.z);
-	boundingBox[3].pos.Set(min.x,max.y,max.z);
+	boundingBox.vertices[0].pos.Set(min.x,max.y,min.z);
+	boundingBox.vertices[1].pos.Set(max.x,max.y,min.z);
+	boundingBox.vertices[2].pos.Set(max.x,max.y,max.z);
+	boundingBox.vertices[3].pos.Set(min.x,max.y,max.z);
 
-	boundingBox[4].pos.Set(min.x, min.y, min.z);
-	boundingBox[5].pos.Set(max.x, min.y, min.z);
-	boundingBox[6].pos.Set(max.x, min.y, max.z);
-	boundingBox[7].pos.Set(min.x, min.y, max.z);
+	boundingBox.vertices[4].pos.Set(min.x, min.y, min.z);
+	boundingBox.vertices[5].pos.Set(max.x, min.y, min.z);
+	boundingBox.vertices[6].pos.Set(max.x, min.y, max.z);
+	boundingBox.vertices[7].pos.Set(min.x, min.y, max.z);
 
 	for(int i=0;i<8;i++)
-		boundingBox[i].color.Set(0.6,0.6,0.6,1);
-
-	/*glBindVertexArray(GeoBufferIds[0]);
-	glBindBuffer(GL_ARRAY_BUFFER, GeoBufferIds[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(boundingBox), boundingBox, GL_STATIC_DRAW);
-	glBindVertexArray(0);*/
+		boundingBox.vertices[i].color.Set(1,1,1,1);
+	
+	boundingBox.indices.resize(24);
+	unsigned int id[24] = {0,1,1,2,2,3,3,0,
+	4,5,5,6,6,7,7,4,    0,4,1,5,2,6,3,7};
+	for(int i=0; i<24; i++)
+		boundingBox.indices[i] = id[i];
 }
 
 
@@ -727,7 +681,7 @@ void SolverGUI::MoveCamera() {
 		LastTime = Now;
 
 	//Update Camera Position
-	camera.velMax = 100;
+	camera.velMax = 2.5;
 	camera.AdvanceCamera((float)(Now-LastTime)/1000.f);
 	LastTime = Now;
 }
@@ -740,6 +694,8 @@ void SolverGUI::setParticlesz(float sz) {
 int tenc=0;
 float tsum=0;
 float tshow=0;
+char tmp[100];
+
 
 void SolverGUI::render() {
 
@@ -756,7 +712,7 @@ void SolverGUI::render() {
 			tshow = tsum / 10; 
 			tenc=tsum=0;
 		}
-		char tmp[100];
+		
 		//sprintf(tmp,"%f fps %d",1000/tshow,frameNo);
 		sprintf(tmp, "%f mspf %d", tshow, frameNo);
 		glutSetWindowTitle(tmp);
@@ -768,28 +724,21 @@ void SolverGUI::render() {
 	
 	MoveCamera();
 
-	cfloat3* pos = solver->hPosRender;
-	cfloat4* color = solver->hColorRender;
-	int numParticles = solver->numParticles;
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	switch (rendermode) {
 	case PARTICLE_RENDERER:
-		particleRO->Draw(pos, color, camera, numParticles);
-		break;
-	case CUBE_RENDERER:
-		cubeRO->Draw(vbuffer, rotationBuffer, camera, pnum);
+		particleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		break;
 	case TRIANGLE_RENDERER:
-		triangleRO->Draw(pos, color, camera, numParticles);
+		triangleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		break;
 	case TRIANGLE_PARTICLE_RENDERER:
-		triangleRO->Draw(pos, color, camera, numParticles);
-		particleRO->Draw(pos, color, camera, numParticles);
+		triangleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
+		particleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		break;
 	}
-	if (drawGeometry) {
-		geomRO->Draw(vbuffer, camera, pnum);
+	if (bDrawGeometry) {
+		geomRO->Draw(&boundingBox, camera);
 	}
 
 	//draw2D();

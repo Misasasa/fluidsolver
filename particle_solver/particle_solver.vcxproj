@@ -190,10 +190,12 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="catpaw\glUtils.h" />
     <ClInclude Include="catpaw\objbuilder.h" />
     <ClInclude Include="catpaw\svd3_cuda.h" />
+    <ClInclude Include="catpaw\vec_define.h" />
     <ClInclude Include="grid.h" />
     <ClInclude Include="Interface\RenderObject.h" />
     <ClInclude Include="Interface\SolverGUI.h" />
     <ClInclude Include="Interface\SolverInfo.h" />
+    <ClInclude Include="Solver.h" />
     <ClInclude Include="solver\param.h" />
     <ClInclude Include="solver\pbfsolver.h" />
     <ClInclude Include="solver\pbf_gpu.cuh" />

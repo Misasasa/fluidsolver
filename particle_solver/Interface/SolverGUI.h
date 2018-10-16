@@ -8,9 +8,9 @@
 
 #include "catpaw/cpToolBox.h"
 #include "RenderObject.h"
+#include "Solver.h"
 
-
-typedef std::vector<vertex> varray;
+using namespace std;
 
 struct fluidInfo {
 	int maxpnum;
@@ -37,30 +37,33 @@ private:
 
 	//RenderObject
 	ParticleRO* particleRO;
-	CubeRO* cubeRO;
+	CubeRO*     cubeRO;
 	TriangleRO* triangleRO;
-
 	GeometryRO* geomRO;
-	bool drawGeometry;
+	
 
-	//rendering simple geometry
-	varray planeGrid;
-	vertex boundingBox[8];
-
+	//simple geometry
+	varr planeGrid;
+	GeometryEntity boundingBox;
+	vector<GeometryRO> geoROs;
 
 	clock_t LastTime = 0;
 	cCamera camera;
 
 	//buffer bindings
-	vertex* vbuffer;
-	int pnum;
-	cmat4* rotationBuffer;
-
+	Solver* solver;
+	vecf3* hPos;
+	vecf4* hColor;
+	vertex*  vbuffer;	   //vertex=cfloat3+cfloat4
+	cmat4* rotationBuffer; //local rotation of cube
 	
+	
+	bool bDrawGeometry = true;
 	bool loadparticleRO = true;
 	bool loadcubeRO = false;
 	bool loadtriangleRO = true;
 	bool bTakeSnapshot = false;
+	bool bPause = true;
 
 	int rendermode;
 	int frameNo;
@@ -73,6 +76,14 @@ public:
 
 	void setRenderMode(int _mode) {
 		rendermode = _mode;
+	}
+
+	//--- bind buffer ---
+	void bindSolver(Solver* solver_) {
+		solver = solver_;
+		hPos = & solver->hPos;
+		hColor = & solver->hColor;
+		GetBoundingBox();
 	}
 
 	//######## OPENGL #############

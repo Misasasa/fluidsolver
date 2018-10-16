@@ -1,5 +1,5 @@
 <Param>
-  <dim>16,16,16</dim>
+  <dim>16,32,16</dim>
   <padding> 1 </padding>
   <h> 0.02 </h>
   <dt> 0.001 </dt>

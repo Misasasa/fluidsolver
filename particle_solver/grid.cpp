@@ -2,6 +2,15 @@
 #include "catpaw/cpXMLHelper.h"
 #include <time.h>
 
+void GridSolver::setup() {
+	loadConfig();
+	allocate();
+	hPos.clear();
+	hColor.clear();
+
+	addParticles();
+}
+
 void GridSolver::loadConfig() {
 	tinyxml2::XMLDocument doc;
 	int result = doc.LoadFile("config/Eulerian.xml");
@@ -9,12 +18,16 @@ void GridSolver::loadConfig() {
 
 	XMLElement* param = doc.FirstChildElement("Param");
 	reader.Use(param);
+	
+	//geometry dimensions
 	grid.dim = reader.GetInt3("dim");
 	grid.padding = reader.GetInt("padding");
 	grid.h = reader.GetFloat("h");
 	grid.xmin.x = -grid.dim.x/2*grid.h;
-	grid.xmin.y = -grid.dim.y/2*grid.h;
+	grid.xmin.y = 0;
 	grid.xmin.z = -grid.dim.z/2*grid.h;
+	domainMin = grid.xmin;
+	domainMax = grid.xmin + grid.dim*grid.h;
 
 	grid.setSize();
 	printf("grid dimension: %d %d %d %f \n", grid.dim.x, grid.dim.y, grid.dim.z, grid.h);
@@ -23,6 +36,7 @@ void GridSolver::loadConfig() {
 	rho = reader.GetFloat("rho");
 	frame = 0;
 	pad = grid.padding;
+	
 }
 
 void GridSolver::allocate() {
@@ -118,7 +132,7 @@ void GridSolver::divVelocity() {
 				div += w[grid.wId(i,j,k+1)]-w[grid.wId(i,j,k)];
 				
 				div /= grid.h;
-				divU[grid.cellId(i,j,k)] = -div;
+				divU[grid.cellId(i,j,k)] = div;
 				divUsum += div*div;
 			}
 		}
@@ -134,7 +148,7 @@ void GridSolver::makeRHS() {
 			for (int i=0; i<grid.dim.x; i++) {
 				
 				int cellid = grid.cellId(i, j, k);
-				float rhs = divU[cellid];
+				float rhs = -divU[cellid];
 				if (j==0) //near solid!
 					rhs += (0-v[grid.vId(i,j,k)])/grid.h;
 				b[cellid] = rhs * rho * grid.h*grid.h / dt;
@@ -511,11 +525,29 @@ void GridSolver::testcase() {
 }
 
 void GridSolver::step() {
-	//advect();
+	advect();
 	bodyForce();
 	makeRHS();
 	solve();
 	updateU();
 	divVelocity();
 	frame ++;
+}
+
+void GridSolver::HandleKeyEvent(char key) {
+
+}
+
+void GridSolver::addParticles() {
+	cfloat3 xmin(-0.05,0.01,-0.05);
+	cfloat3 tmp;
+	for(int i=0; i<50; i++)
+		for(int j=0; j<50; j++)
+			for (int k=0; k<50; k++) {
+				tmp.x = xmin.x + i*0.002;
+				tmp.y = xmin.y + j*0.002;
+				tmp.z = xmin.z + k*0.002;
+				hPos.push_back(tmp);
+				hColor.push_back(cfloat4(1,1,1,1));
+			}
 }

@@ -62,6 +62,10 @@ void ParticleRO::SetupTexture() {
 }
 
 void ParticleRO::Draw(cfloat3* x_p, cfloat4* color_p, cCamera& camera, int sz) {
+	
+	if(sz == 0)
+		return;
+	
 	ProjectionMatrix = camera.projmat;
 	ViewMatrix = camera.viewmat;
 
@@ -223,22 +227,22 @@ void GeometryRO::SetupBuffer() {
 	glEnableVertexAttribArray(0);//pos
 	glEnableVertexAttribArray(1);//color
 
-	maxlen = len = 1;
-	glGenBuffers(1, &bufferids[1]);
+	maxlen = len = 100;
+	glGenBuffers(2, &bufferids[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, bufferids[1]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertex)*maxlen, NULL, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), 0);
 	glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(vertex), (void*)sizeof(cfloat3));
 
-	glBindBuffer(GL_ARRAY_BUFFER, bufferids[2]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferids[2]);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(maxlen), NULL, GL_STATIC_DRAW);
 
 	glBindVertexArray(0);
 }
 
 void GeometryRO::SetupShader() {
-	shaderobj.loadShader("shader/SimpleShader.vertex.glsl", GL_VERTEX_SHADER);
-	shaderobj.loadShader("shader/SimpleShader.fragment.glsl", GL_FRAGMENT_SHADER);
+	shaderobj.loadShader("shader/box.vertex.glsl", GL_VERTEX_SHADER);
+	shaderobj.loadShader("shader/box.fragment.glsl", GL_FRAGMENT_SHADER);
 
 	shaderobj.LinkProgram();
 
@@ -249,8 +253,11 @@ void GeometryRO::SetupShader() {
 	ExitOnGLError("ERROR: Could not get the shader uniform locations");
 }
 
-void GeometryRO::Draw(vertex* data, cCamera& camera, int sz) {
+
+
+void GeometryRO::Draw(GeometryEntity* geoE, cCamera& camera) {
 	ModelMatrix = IDENTITY_MAT;
+	ViewMatrix = camera.viewmat;
 
 	glUseProgram(shaderobj.getProgramId());
 	ExitOnGLError("ERROR: Could not use the shader program");
@@ -261,11 +268,16 @@ void GeometryRO::Draw(vertex* data, cCamera& camera, int sz) {
 	ExitOnGLError("ERROR: Could not set the shader uniforms");
 
 	glBindVertexArray(bufferids[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, bufferids[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertex)*geoE->vertices.size(), geoE->vertices.data(), GL_STATIC_DRAW);
 	ExitOnGLError("ERROR: Could not bind the VAO for drawing purposes");
 
-	glPointSize(10.0f);
-	//glDrawArrays(GL_POINTS, 0,8);
-	glDrawElements(GL_LINES, 24, GL_UNSIGNED_INT, (GLvoid*)0);
+	glPointSize(3.0f);
+	//glDrawArrays(GL_POINTS, 0, 8);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufferids[2]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint)*geoE->indices.size(), geoE->indices.data(), GL_STATIC_DRAW);
+
+	glDrawElements(GL_LINES, geoE->indices.size(), GL_UNSIGNED_INT, (GLvoid*)0);
 	glBindVertexArray(0);
 	glUseProgram(0);
 }
@@ -356,6 +368,8 @@ void TriangleRO::SetupTexture() {
 }
 
 void TriangleRO::Draw(cfloat3* x_p, cfloat4* color_p, cCamera& camera, int sz){
+	if(sz==0) return;
+
 	ProjectionMatrix = camera.projmat;
 	ViewMatrix = camera.viewmat;
 

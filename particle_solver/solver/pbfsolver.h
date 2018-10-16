@@ -4,6 +4,7 @@
 #include "pbf_gpu.cuh"
 #include "catpaw/objbuilder.h"
 #include "catpaw/cpXMLHelper.h"
+#include "Solver.h"
 
 #define RUN_GPU 0
 #define RUN_CPU 1
@@ -29,7 +30,7 @@ struct FluidSrc {
 	int interval;
 };
 
-class PBFSolver{
+class PBFSolver:public Solver{
 
 public:
 	
@@ -105,7 +106,9 @@ public:
 	//=============================
 	//           METHOD
 	//=============================
-
+	
+	void step();
+	void HandleKeyEvent(char key);
 
 	void setupHostBuffer();
 	void setupDeviceBuffer(); 
@@ -114,7 +117,7 @@ public:
 	void copy2Host();
 	void copy2host_full();
 
-	void step();
+	
 	void sort();
 	void sortBaryCenter();
 

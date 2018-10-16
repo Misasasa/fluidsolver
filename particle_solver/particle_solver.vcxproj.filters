@@ -102,6 +102,10 @@
     <ClInclude Include="catpaw\cpToolBox.h">
       <Filter>catpaw</Filter>
     </ClInclude>
+    <ClInclude Include="Solver.h" />
+    <ClInclude Include="catpaw\vec_define.h">
+      <Filter>catpaw</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="solver\pbf_gpu.cu">

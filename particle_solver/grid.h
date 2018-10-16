@@ -1,5 +1,8 @@
 #pragma once
 #include "catpaw/geometry.h"
+#include "Solver.h"
+
+
 typedef float scalar;
 #define EPSILON 0.000001
 struct Grid
@@ -46,7 +49,7 @@ struct Grid
 	}
 };
 
-class GridSolver {
+class GridSolver:public Solver{
 public:
 	Grid grid;
 	
@@ -65,7 +68,7 @@ public:
 	scalar* Aq; // tmp: A * conjugate basis
 	scalar* r;  // tmp: residual
 	scalar* q;  // tmp: conjugate basis 0
-	
+
 	//param
 	scalar dt;
 	scalar rho;
@@ -73,6 +76,13 @@ public:
 	int frame;
 	int pad;
 
+
+	// ==============   METHOD   =================
+
+	void step();
+	void HandleKeyEvent(char key);
+
+	void setup();
 	void loadConfig();
 	void allocate();
 	void mvproduct(scalar* v, scalar* dst);
@@ -93,5 +103,7 @@ public:
 	void updateU();
 	void bodyForce();
 	void advect();
-	void step();
+	
+	void addParticles();
+
 };

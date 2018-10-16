@@ -488,3 +488,7 @@ public:
 };
 
 
+struct vertex {
+	cfloat3 pos;
+	cfloat4 color;
+};

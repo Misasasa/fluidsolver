@@ -191,7 +191,45 @@ void PBFSolver::step() {
 	time += hParam.dt;
 }
 
-
+void PBFSolver::HandleKeyEvent(char key) {
+	switch (key) {
+	case 'b':
+		dumpSimulationDataText();
+		break;
+	case 'r':
+		dumpRenderingData();
+		break;
+	case 'e':
+		bEmitParticle = !bEmitParticle;
+		if (bEmitParticle)
+			printf("Start to emit particles.\n");
+		else
+			printf("Stop emitting particles.\n");
+		break;
+	case 'f':
+		bReleaseSource = true;
+		break;
+	case 'i':
+		//solver->bInjectGas = !solver->bInjectGas;
+		for (int i=0; i<objectvec.size(); i++)
+			objectvec[i].bInjectGas = !objectvec[i].bInjectGas;
+		if (objectvec[0].bInjectGas) {
+			printf("Start to inject gas.\n");
+		}
+		else
+			printf("Stop injecting particles.\n");
+		break;
+	case 'j':
+		for (int i=0; i<objectvec.size(); i++)
+			objectvec[i].bJetGas = !objectvec[i].bJetGas;
+		if (objectvec[0].bJetGas) {
+			printf("Start to jet gas.\n");
+		}
+		else
+			printf("Stop jetting particles.\n");
+		break;
+	}
+}
 
 
 

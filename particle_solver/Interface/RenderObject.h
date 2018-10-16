@@ -1,21 +1,14 @@
 #pragma once
 #include "catpaw/glUtils.h"
-#include "catpaw/geometry.h"
-#include <vector>
+#include "catpaw/vec_define.h"
 
-using namespace std;
-typedef vector<vertex> varr;
-typedef vector<cmat4>  marr;
-typedef vector<float> farr;
+
 typedef vector<GLuint> uarr;
-
-typedef vector<cfloat3> vecf3;
-typedef vector<cfloat4> vecf4;
 
 class RenderObjectBase {
 protected:
 	varr vbuffer;
-	vector<GLuint> bufferids;
+	uarr bufferids;
 	shaderObject shaderobj;
 	int maxlen;
 	int len;
@@ -52,6 +45,11 @@ public:
 	void setParticleSize(float sz){particlesz = sz;}
 };
 
+
+
+
+
+
 class CubeRO :public RenderObjectBase {
 private:
 	GLuint ParticleSizeUniformLocation;
@@ -62,14 +60,26 @@ public:
 	void Draw(vertex* data, cmat4* marr, cCamera& camera, int sz);
 };
 
+
+
+
+struct GeometryEntity {
+	varr vertices;
+	uarr indices;
+};
+
 class GeometryRO: public RenderObjectBase {
 public:
 	GeometryRO();
 	void SetupBuffer();
 	void SetupShader();
-	void SetupGeometry(const uarr& uarr);
-	void Draw(vertex* data, cCamera& camera, int sz);
+	void Draw(GeometryEntity* geoE, cCamera& camera);
 };
+
+
+
+
+
 
 class TriangleRO :public RenderObjectBase {
 private:
