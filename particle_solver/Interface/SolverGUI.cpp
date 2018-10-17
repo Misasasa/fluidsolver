@@ -640,6 +640,7 @@ void SolverGUI::Initialize(int argc, char** argv) {
 	InitializeGL(argc,argv);
 
 	frameNo = 0;
+	bPause = false;
 
 	//vbuffer = new vertex[1];
 	//vbuffer[0].pos = cfloat3(0,0,0);

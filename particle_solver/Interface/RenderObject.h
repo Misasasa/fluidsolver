@@ -3,7 +3,6 @@
 #include "catpaw/vec_define.h"
 
 
-typedef vector<GLuint> uarr;
 
 class RenderObjectBase {
 protected:

@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
  	gs.setup();
 	
 	solverGUI.bindSolver(&gs);
-	solverGUI.setParticlesz(0.001);
+	solverGUI.setParticlesz(0.005);
 
 	solverGUI.Run();
 	

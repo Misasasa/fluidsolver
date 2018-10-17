@@ -103,7 +103,9 @@ public:
 	void updateU();
 	void bodyForce();
 	void advect();
+	void swapBuffer();
 	
 	void addParticles();
+	void advectParticles();
 
 };

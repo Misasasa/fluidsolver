@@ -5,14 +5,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#ifdef USE_OPENGL
-
-#include "GL/glew.h"
-#include "GL/freeglut.h"
-#include "SOIL.h"
-
-#endif
-
 #ifdef BUILD_CUDA
 #include <host_defines.h>
 #define HDFUNC __host__ __device__

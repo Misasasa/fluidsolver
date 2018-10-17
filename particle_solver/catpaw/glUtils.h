@@ -8,7 +8,7 @@
 #include "GL/glew.h"
 #include "GL/freeglut.h"
 
-#include "geometry.h"
+#include "vec_define.h"
 
 
 void ExitOnGLError(const char* error_message);

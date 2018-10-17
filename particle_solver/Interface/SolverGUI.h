@@ -63,7 +63,7 @@ private:
 	bool loadcubeRO = false;
 	bool loadtriangleRO = true;
 	bool bTakeSnapshot = false;
-	bool bPause = true;
+	bool bPause = false;
 
 	int rendermode;
 	int frameNo;

@@ -202,7 +202,7 @@ void GridSolver::solve() {
 		}
 		rabs/=grid.dimSize;
 		printf("turn %d residual: %f\n", iter, rabs);
-		if(rabs < 0.0000001)
+		if(rabs < 0.000001)
 			break;
 		iter ++;
 	};
@@ -259,9 +259,10 @@ void GridSolver::updateU() {
 	}
 	
 	//update time step size
-	maxu += sqrt(5*grid.h*9.8);
-	//dt = 5*grid.h / maxu;
-	//printf("time step size updated as %f.\n", dt);
+	float stride = 0.5;
+	maxu += sqrt(stride*grid.h*9.8);
+	//dt = stride*grid.h / maxu;
+	printf("time step size updated as %f.\n", dt);
 }
 
 cint3 GridSolver::locateCell(cfloat3 p) {
@@ -295,6 +296,7 @@ cint3 GridSolver::locateCell(cfloat3 p) {
 	}
 	return cint3(xi,yi,zi);
 }
+#define EPSILON 0.000000001
 
 scalar GridSolver::sampleU(cfloat3 p) {
 	scalar ures;
@@ -304,12 +306,27 @@ scalar GridSolver::sampleU(cfloat3 p) {
 	y = (p.y - grid.xmin.y)/grid.h;
 	z = (p.z - grid.xmin.z)/grid.h;
 	//floor
-	c.x = x;
-	c.y = y;
-	c.z = z;
+	c.x = floor(x);
+	c.y = floor(y);
+	c.z = floor(z);
+
+	//clamp
+	if (x-c.x<EPSILON && x==grid.dim.x)
+		c.x -= 1;
+	if(x>-EPSILON && x==-1)
+		c.x += 1;
+	if(y-c.y<EPSILON && y==grid.dim.y)
+		c.y -= 1;
+	if(y>-EPSILON && y==-1)
+		c.y += 1;
+	if(z-c.z<EPSILON && z==grid.dim.z)
+		c.z -= 1;
+	if(z>-EPSILON && z==-1)
+		c.z += 1;
+
 	//outside of boundary
-	if(c.x<0 || c.x>grid.dim.x || c.y<0 || c.y>grid.dim.y
-		||c.z<0 || c.z>grid.dim.z)
+	if(c.x<0 || c.x>grid.dim.x-1 || c.y<0 || c.y>grid.dim.y-1
+		||c.z<0 || c.z>grid.dim.z-1)
 		return 0;
 	//dual grid of u
 	if(y-c.y<0.5)
@@ -340,12 +357,27 @@ scalar GridSolver::sampleV(cfloat3 p) {
 	y = (p.y - grid.xmin.y)/grid.h;
 	z = (p.z - grid.xmin.z)/grid.h;
 	//floor
-	c.x = x;
-	c.y = y;
-	c.z = z;
+	c.x = floor(x);
+	c.y = floor(y);
+	c.z = floor(z);
+
+	//clamp
+	if (x-c.x<EPSILON && x==grid.dim.x)
+		c.x -= 1;
+	if (x>-EPSILON && x==-1)
+		c.x += 1;
+	if (y-c.y<EPSILON && y==grid.dim.y)
+		c.y -= 1;
+	if (y>-EPSILON && y==-1)
+		c.y += 1;
+	if (z-c.z<EPSILON && z==grid.dim.z)
+		c.z -= 1;
+	if (z>-EPSILON && z==-1)
+		c.z += 1;
+
 	//outside of boundary
-	if (c.x<0 || c.x>grid.dim.x || c.y<0 || c.y>grid.dim.y
-		||c.z<0 || c.z>grid.dim.z)
+	if (c.x<0 || c.x>grid.dim.x-1 || c.y<0 || c.y>grid.dim.y-1
+		||c.z<0 || c.z>grid.dim.z-1)
 		return 0;
 	//dual grid of u
 	if (x-c.x<0.5)
@@ -376,12 +408,27 @@ scalar GridSolver::sampleW(cfloat3 p) {
 	y = (p.y - grid.xmin.y)/grid.h;
 	z = (p.z - grid.xmin.z)/grid.h;
 	//floor
-	c.x = x;
-	c.y = y;
-	c.z = z;
+	c.x = floor(x);
+	c.y = floor(y);
+	c.z = floor(z);
+
+	//clamp
+	if (x-c.x<EPSILON && x==grid.dim.x)
+		c.x -= 1;
+	if (x>-EPSILON && x==-1)
+		c.x += 1;
+	if (y-c.y<EPSILON && y==grid.dim.y)
+		c.y -= 1;
+	if (y>-EPSILON && y==-1)
+		c.y += 1;
+	if (z-c.z<EPSILON && z==grid.dim.z)
+		c.z -= 1;
+	if (z>-EPSILON && z==-1)
+		c.z += 1;
+
 	//outside of boundary
-	if (c.x<0 || c.x>grid.dim.x || c.y<0 || c.y>grid.dim.y
-		||c.z<0 || c.z>grid.dim.z)
+	if (c.x<0 || c.x>grid.dim.x-1 || c.y<0 || c.y>grid.dim.y-1
+		||c.z<0 || c.z>grid.dim.z-1)
 		return 0;
 	//dual grid of u
 	if (x-c.x<0.5)
@@ -417,6 +464,7 @@ void GridSolver::advect() {
 		for(int j=0;j<grid.dim.y; j++)
 			for (int i=0; i<grid.dim.x+1; i++) {
 				utmp.x = u[grid.uId(i,j,k)];
+				
 				utmp.y = (v[grid.vId(i,j,k)]+v[grid.vId(i-1,j,k)]
 					+v[grid.vId(i,j+1,k)]+v[grid.vId(i-1,j+1,k)])*0.25;
 				utmp.z = (w[grid.wId(i,j,k)]+w[grid.wId(i-1,j,k)]
@@ -434,16 +482,33 @@ void GridSolver::advect() {
 				utmp1.z = sampleW(xmid);
 				xmid = xtmp + utmp1 * dt * (-1);
 
-				uadv[grid.uId(i,j,k)] = sampleU(xmid);
+				utmp.y = 0;
+				utmp.z = 0;
+				cfloat3 xmid2 = xtmp + utmp * dt * (-1);
+				float ut = sampleU(xmid2);
+				uadv[grid.uId(i,j,k)] = ut;
 
-				//testing! passed
-				/*if (dot(utmp, utmp)!=0) {
-					printf("1 %f %f %f\n", utmp.x, utmp.y, utmp.z);
-					printf("2 %f %f %f\n", sampleU(xtmp), sampleV(xtmp), sampleW(xtmp));
+				//uadv[grid.uId(i,j,k)] = sampleU(xmid);
 
+				//if(!(abs(uadv[grid.uId(i, j, k)])<10))
+				//	printf("uadv %f\n", uadv[grid.uId(i, j, k)]);
+				//test
+				/*
+				if (dot(utmp, utmp)!=0) {
+					//printf("1 %f %f %f\n", utmp.x, utmp.y, utmp.z);
+					
+					cfloat3 t(sampleU(xtmp), sampleV(xtmp), sampleW(xtmp));
+					//printf("2 %f %f %f\n", t.x, t.y, t.z);
+					cfloat3 dx = utmp - t;
+					if (dot(dx, dx)>0.000001) {
+						printf("wait.\n");
+						sampleU(xtmp);
+					}
+						
 				}*/
 			}
-
+	
+	
 	//y-component
 	for (int k=0; k<grid.dim.z; k++)
 		for (int j=0; j<grid.dim.y+1; j++)
@@ -468,6 +533,7 @@ void GridSolver::advect() {
 
 				vadv[grid.vId(i, j, k)] = sampleV(xmid);
 			}
+			
 
 	//z-component
 	for (int k=0; k<grid.dim.z+1; k++)
@@ -493,6 +559,21 @@ void GridSolver::advect() {
 
 				wadv[grid.wId(i, j, k)] = sampleW(xmid);
 			}
+
+	//do the copy by swapping
+	swapBuffer();
+}
+
+inline void swapP(scalar*& a, scalar*& b) {
+	scalar* c = b;
+	b = a;
+	a = c;
+}
+
+void GridSolver::swapBuffer() {
+	swapP(u, uadv);
+	swapP(v, vadv);
+	swapP(w, wadv);
 }
 
 void GridSolver::bodyForce() {
@@ -502,7 +583,7 @@ void GridSolver::bodyForce() {
 	for (int i=0; i<grid.dim.x; i++)
 		for (int j=0; j<grid.dim.y+1; j++)
 			for (int k=0; k<grid.dim.z; k++)
-				v[grid.vId(i, j, k)] += -9.8 * dt;
+				v[grid.vId(i, j, k)] += 10 * dt;
 			
 }
 
@@ -526,9 +607,12 @@ void GridSolver::testcase() {
 
 void GridSolver::step() {
 	advect();
+	advectParticles();
 	bodyForce();
+	
 	makeRHS();
 	solve();
+	
 	updateU();
 	divVelocity();
 	frame ++;
@@ -539,15 +623,29 @@ void GridSolver::HandleKeyEvent(char key) {
 }
 
 void GridSolver::addParticles() {
-	cfloat3 xmin(-0.05,0.01,-0.05);
+	cfloat3 xmin(-0.1,0.01,-0.1);
 	cfloat3 tmp;
-	for(int i=0; i<50; i++)
-		for(int j=0; j<50; j++)
-			for (int k=0; k<50; k++) {
-				tmp.x = xmin.x + i*0.002;
-				tmp.y = xmin.y + j*0.002;
-				tmp.z = xmin.z + k*0.002;
+	for(float i=0; i<0.2; i+=0.01)
+		for(float j=0; j<0.1; j+=0.01)
+			for (float k=0; k<0.2; k+=0.01) {
+				tmp.x = xmin.x + i;
+				tmp.y = xmin.y + j;
+				tmp.z = xmin.z + k;
 				hPos.push_back(tmp);
 				hColor.push_back(cfloat4(1,1,1,1));
 			}
+}
+
+void GridSolver::advectParticles() {
+	for (int i=0; i<hPos.size(); i++) {
+		cfloat3 v;
+		v.x = sampleU(hPos[i]);
+		v.y = sampleV(hPos[i]);
+		v.z = sampleW(hPos[i]);
+		hPos[i] += v * dt;
+		float l = 1;//sqrt(dot(v,v));
+		hColor[i].x = abs(v.x)/0.01;
+		hColor[i].y = 0;//abs(v.y)/l;
+		hColor[i].z = abs(v.z)/l;
+	}
 }
