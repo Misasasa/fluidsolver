@@ -728,8 +728,9 @@ void SolverGUI::render() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	switch (rendermode) {
 	case PARTICLE_RENDERER:
-		particleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
+		particleRO->Draw(hPos->data(), hColor->data(), camera, solver->numP);
 		break;
+	/*
 	case TRIANGLE_RENDERER:
 		triangleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		break;
@@ -737,6 +738,7 @@ void SolverGUI::render() {
 		triangleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		particleRO->Draw(hPos->data(), hColor->data(), camera, hPos->size());
 		break;
+	*/
 	}
 	if (bDrawGeometry) {
 		geomRO->Draw(&boundingBox, camera);

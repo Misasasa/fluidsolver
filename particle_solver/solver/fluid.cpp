@@ -1,18 +1,8 @@
 
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "host_defines.h"
+#include "particle_common.h"
 
-#include "pbfsolver.h"
+void loadFluidVolume(XMLElement* sceneEle, int typenum, vector<fluidvol>& fvs) {
 
-
-
-
-extern SimParam hParam;
-
-
-
-void PBFSolver::loadFluidVols(XMLElement* sceneEle) {
 	Tinyxml_Reader reader;
 	fluidvol fv;
 	XMLElement* fvele = sceneEle->FirstChildElement("Vol");
@@ -20,8 +10,8 @@ void PBFSolver::loadFluidVols(XMLElement* sceneEle) {
 		reader.Use(fvele);
 		fv.xmin = reader.GetFloat3("VolMin");
 		fv.xmax = reader.GetFloat3("VolMax");
-		reader.GetFloatN(fv.volfrac, hParam.maxtypenum, "VolFrac");
-		fluidvols.push_back(fv);
+		reader.GetFloatN(fv.volfrac, typenum, "VolFrac");
+		fvs.push_back(fv);
 		fvele = fvele->NextSiblingElement();
 	}
 }

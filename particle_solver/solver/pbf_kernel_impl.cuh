@@ -6,14 +6,12 @@
 #include <cuda_runtime.h>
 #include "catpaw/geometry.h"
 #include "pbf_gpu.cuh"
-
-typedef unsigned int uint;
+#include "cuda_common.cuh"
 
 
 SimParam hParam;
 __device__ SimParam dParam; 
 
-#define GRID_UNDEF 99999999
 
 __device__ uint calcGridHash(cint3 gridPos)
 {

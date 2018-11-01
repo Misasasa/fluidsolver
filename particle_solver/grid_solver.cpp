@@ -1,4 +1,4 @@
-#include "grid.h"
+#include "grid_solver.h"
 #include "catpaw/cpXMLHelper.h"
 #include <time.h>
 

@@ -191,6 +191,21 @@ void PBFSolver::step() {
 	time += hParam.dt;
 }
 
+void PBFSolver::loadFluidVols(XMLElement* sceneEle) {
+	Tinyxml_Reader reader;
+	fluidvol fv;
+	XMLElement* fvele = sceneEle->FirstChildElement("Vol");
+	while (fvele!=NULL && strcmp(fvele->Name(), "Vol")==0) {
+		reader.Use(fvele);
+		fv.xmin = reader.GetFloat3("VolMin");
+		fv.xmax = reader.GetFloat3("VolMax");
+		reader.GetFloatN(fv.volfrac, hParam.maxtypenum, "VolFrac");
+		fluidvols.push_back(fv);
+		fvele = fvele->NextSiblingElement();
+	}
+}
+
+
 void PBFSolver::HandleKeyEvent(char key) {
 	switch (key) {
 	case 'b':
@@ -304,3 +319,6 @@ void PBFSolver::copy2Device_partial(int begin, int end) {
 	cudaMemcpy(dData.uniqueId+begin,	hUniqueId + begin, len * sizeof(int), cudaMemcpyHostToDevice);
 	
 }
+
+
+

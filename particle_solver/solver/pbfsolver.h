@@ -5,30 +5,16 @@
 #include "catpaw/objbuilder.h"
 #include "catpaw/cpXMLHelper.h"
 #include "Solver.h"
+#include "particle_common.h"
 
 #define RUN_GPU 0
 #define RUN_CPU 1
 
 
 
-struct fluidvol {
-	cfloat3 xmin;
-	cfloat3 xmax;
-	float volfrac[10];
-};
-
-
 #define FLUIDSRC_ROUND 1
 #define FLUIDSRC_SQUARE 2
 
-struct FluidSrc {
-	cfloat3 srcpos;
-	cfloat3 norm;
-	float radius;
-	float speed;
-	char type;//geometry type
-	int interval;
-};
 
 class PBFSolver:public Solver{
 

@@ -9,6 +9,7 @@ public:
 
 	vecf3 hPos;
 	vecf4 hColor;
+	int numP;
 
 	cfloat3 domainMin;
 	cfloat3 domainMax;

@@ -49,11 +49,14 @@
     <ClCompile Include="solver\fluid.cpp">
       <Filter>solver</Filter>
     </ClCompile>
-    <ClCompile Include="grid.cpp">
-      <Filter>solver</Filter>
-    </ClCompile>
     <ClCompile Include="catpaw\cpXMLHelper.cpp">
       <Filter>catpaw</Filter>
+    </ClCompile>
+    <ClCompile Include="grid_solver.cpp">
+      <Filter>solver</Filter>
+    </ClCompile>
+    <ClCompile Include="solver\sph_solver.cpp">
+      <Filter>solver</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -90,9 +93,6 @@
     <ClInclude Include="solver\param.h">
       <Filter>solver</Filter>
     </ClInclude>
-    <ClInclude Include="grid.h">
-      <Filter>solver</Filter>
-    </ClInclude>
     <ClInclude Include="catpaw\cpTimer.h">
       <Filter>catpaw</Filter>
     </ClInclude>
@@ -106,9 +106,30 @@
     <ClInclude Include="catpaw\vec_define.h">
       <Filter>catpaw</Filter>
     </ClInclude>
+    <ClInclude Include="grid_solver.h">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\sph_solver.h">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\sph_solver.cuh">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\particle_common.h">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\sph_kernel_impl.cuh">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\cuda_common.cuh">
+      <Filter>solver</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="solver\pbf_gpu.cu">
+      <Filter>solver</Filter>
+    </CudaCompile>
+    <CudaCompile Include="solver\sph_solver.cu">
       <Filter>solver</Filter>
     </CudaCompile>
   </ItemGroup>

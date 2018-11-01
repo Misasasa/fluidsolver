@@ -172,7 +172,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="catpaw\geometry.cpp" />
     <ClCompile Include="catpaw\glUtils.cpp" />
     <ClCompile Include="catpaw\objbuilder.cpp" />
-    <ClCompile Include="grid.cpp" />
+    <ClCompile Include="grid_solver.cpp" />
     <ClCompile Include="Interface\RenderObject.cpp" />
     <ClCompile Include="Interface\SolverGUI.cpp" />
     <ClCompile Include="main.cpp" />
@@ -181,6 +181,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="solver\pbfsolver.cpp" />
     <ClCompile Include="solver\addParticles.cpp" />
     <ClCompile Include="solver\setupscene.cpp" />
+    <ClCompile Include="solver\sph_solver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="catpaw\cpToolBox.h" />
@@ -191,18 +192,24 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="catpaw\objbuilder.h" />
     <ClInclude Include="catpaw\svd3_cuda.h" />
     <ClInclude Include="catpaw\vec_define.h" />
-    <ClInclude Include="grid.h" />
+    <ClInclude Include="grid_solver.h" />
     <ClInclude Include="Interface\RenderObject.h" />
     <ClInclude Include="Interface\SolverGUI.h" />
     <ClInclude Include="Interface\SolverInfo.h" />
     <ClInclude Include="Solver.h" />
+    <ClInclude Include="solver\cuda_common.cuh" />
     <ClInclude Include="solver\param.h" />
+    <ClInclude Include="solver\particle_common.h" />
     <ClInclude Include="solver\pbfsolver.h" />
     <ClInclude Include="solver\pbf_gpu.cuh" />
     <ClInclude Include="solver\pbf_kernel_impl.cuh" />
+    <ClInclude Include="solver\sph_kernel_impl.cuh" />
+    <ClInclude Include="solver\sph_solver.cuh" />
+    <ClInclude Include="solver\sph_solver.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="solver\pbf_gpu.cu" />
+    <CudaCompile Include="solver\sph_solver.cu" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
