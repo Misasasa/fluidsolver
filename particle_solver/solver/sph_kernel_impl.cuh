@@ -195,7 +195,7 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 
 		for (uint j = startIndex; j < endIndex; j++)
 		{
-			if (j != index)
+			if (j != index && data.type[j]==TYPE_FLUID)
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
@@ -225,6 +225,7 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 __global__ void computeF(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -240,6 +241,34 @@ __global__ void computeF(SimData_SPH data, int numP) {
 }
 
 
+__device__ void clampBoundary(int index, SimData_SPH data) {
+	//boundary
+	if (data.pos[index].y < dParam.gridxmin.y+EPSILON) {
+		data.pos[index].y = dParam.gridxmin.y+EPSILON;
+		data.vel[index].y = 0;
+	}
+	if (data.pos[index].y > dParam.gridxmax.y-EPSILON) {
+		data.pos[index].y = dParam.gridxmax.y-EPSILON;
+		data.vel[index].y = 0;
+	}
+	if (data.pos[index].x < dParam.gridxmin.x+EPSILON) {
+		data.pos[index].x = dParam.gridxmin.x+EPSILON;
+		data.vel[index].x = 0;
+	}
+	if (data.pos[index].x > dParam.gridxmax.x-EPSILON) {
+		data.pos[index].x = dParam.gridxmax.x-EPSILON;
+		data.vel[index].x = 0;
+	}
+	if (data.pos[index].z < dParam.gridxmin.z+EPSILON) {
+		data.pos[index].z = dParam.gridxmin.z+EPSILON;
+		data.vel[index].z = 0;
+	}
+	if (data.pos[index].z > dParam.gridxmax.z-EPSILON) {
+		data.pos[index].z = dParam.gridxmax.z-EPSILON;
+		data.vel[index].z = 0;
+	}
+	
+}
 
 __global__ void advectAndCollision(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
@@ -248,10 +277,12 @@ __global__ void advectAndCollision(SimData_SPH data, int numP) {
 	data.vel[index] += data.force[index] * dParam.dt;
 	data.pos[index] += data.vel[index] * dParam.dt;
 
-	if(data.pos[index].y < 0){
-		data.pos[index].y = 0;
-		data.vel[index].y = 0;
-	}
+	clampBoundary(index, data);
+	
+
+
+
+
 }
 
 

@@ -20,7 +20,7 @@
 	
 	<Viscosity>	 0.001	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
-	<PressureK> 10 </PressureK>
+	<PressureK> 1119 </PressureK>
 
 	<BoundStiff>	50000.0	</BoundStiff>
 	<SoftBoundMin>	-30,   0, -30 </SoftBoundMin>
