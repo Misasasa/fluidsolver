@@ -141,7 +141,7 @@ __device__ void PressureCell(cint3 gridPos, int index, cfloat3 pos, float& densi
 		
 		for (uint j = startIndex; j < endIndex; j++)
 		{
-			if (j != index)
+			if (j != index && data.type[j]==TYPE_FLUID)
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
@@ -273,6 +273,7 @@ __device__ void clampBoundary(int index, SimData_SPH data) {
 __global__ void advectAndCollision(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
+	if (data.type[index]==TYPE_BOUNDARY) return;
 
 	data.vel[index] += data.force[index] * dParam.dt;
 	data.pos[index] += data.vel[index] * dParam.dt;

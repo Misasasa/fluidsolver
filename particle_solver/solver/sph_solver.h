@@ -5,6 +5,7 @@
 #include "catpaw/cpXMLHelper.h"
 #include "Solver.h"
 #include "particle_common.h"
+#include "ParticleGenerator.h"
 
 namespace sph{
 
@@ -68,10 +69,11 @@ public:
 	void fluidSrcEmit();
 
 
-	void addwall(cfloat3 min, cfloat3 max);
-	void addopenbox(cfloat3 min, cfloat3 max, float thickness);
-	void loadboundary(string fname);
-	void loadParticleSample(string fname);
+	//void addwall(cfloat3 min, cfloat3 max);
+	//void addopenbox(cfloat3 min, cfloat3 max, float thickness);
+	//void loadboundary(string fname);
+	//void loadParticleSample(string fname);
+	void loadPO(ParticleObject* po);
 
 	//Setup Scenes
 	void parseParam(char* xmlpath);

@@ -5,6 +5,7 @@
 
 #include "sph_solver.h"
 
+
 namespace sph{
 
 extern SimParam_SPH hParam;
@@ -290,8 +291,10 @@ void SPHSolver::addfluidvolumes() {
 				for (float z=xmin.z; z<xmax.z; z+=spacing) {
 
 					int pid = addDefaultParticle();
-					if (pid==-1)
-						goto done_add;
+					if (pid==-1) {
+						printf("%d particles added. Particle Limit Reached.\n", addcount);
+						return;
+					}
 					addcount += 1;
 
 					hPos[pid] = cfloat3(x, y, z);
@@ -303,8 +306,24 @@ void SPHSolver::addfluidvolumes() {
 
 		printf("fluid block No. %d has %d particles.\n", i+1, addcount);
 	}
-done_add:
-	printf("%d particles added in total.\n", addcount);
+}
+	
+
+void SPHSolver::loadPO(ParticleObject* po) {
+	float spacing = hParam.spacing;
+	float pden = hParam.restdensity;
+	float mp   = spacing*spacing*spacing* pden;
+
+	for (int i=0; i<po->pos.size(); i++) {
+		int pid = addDefaultParticle();
+		if(pid==-1)
+			break;
+		hPos[pid] = po->pos[i];
+		hColor[pid] = cfloat4(1,1,1,0.7);
+		hType[pid] = po->type[i];
+		hMass[pid] = mp;
+		hGroup[pid] = 0;
+	}
 }
 
 void SPHSolver::setupFluidScene() {
@@ -312,6 +331,11 @@ void SPHSolver::setupFluidScene() {
 	setupHostBuffer();
 
 	addfluidvolumes();
+
+	BoundaryGenerator bg;
+	ParticleObject* boundary = bg.loadxml("script_object/box.xml");
+	loadPO(boundary);
+	delete boundary;
 
 	setupDeviceBuffer();
 	copy2Device();

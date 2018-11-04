@@ -3,6 +3,12 @@
 #include "Solver.h"
 #include "catpaw/cpToolBox.h"
 
+#define TYPE_FLUID 0
+#define TYPE_CLOTH 1
+#define TYPE_BOUNDARY 2
+#define TYPE_EMITTER 3
+#define TYPE_NULL 99
+
 struct fluidvol {
 	cfloat3 xmin;
 	cfloat3 xmax;

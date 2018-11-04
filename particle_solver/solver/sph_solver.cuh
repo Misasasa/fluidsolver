@@ -3,14 +3,7 @@
 #include "catpaw/geometry.h"
 #include "vector_types.h"
 #include "catpaw/objbuilder.h"
-#include "param.h"
-
-
-#define TYPE_FLUID 0
-#define TYPE_CLOTH 1
-#define TYPE_BOUNDARY 2
-#define TYPE_EMITTER 3
-#define TYPE_NULL 99
+#include "particle_common.h"
 
 #define EPSILON 0.000001
 

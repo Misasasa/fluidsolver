@@ -46,9 +46,6 @@
     <ClCompile Include="solver\cloth.cpp">
       <Filter>solver</Filter>
     </ClCompile>
-    <ClCompile Include="solver\fluid.cpp">
-      <Filter>solver</Filter>
-    </ClCompile>
     <ClCompile Include="catpaw\cpXMLHelper.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
@@ -56,6 +53,9 @@
       <Filter>solver</Filter>
     </ClCompile>
     <ClCompile Include="solver\sph_solver.cpp">
+      <Filter>solver</Filter>
+    </ClCompile>
+    <ClCompile Include="solver\particle_common.cpp">
       <Filter>solver</Filter>
     </ClCompile>
   </ItemGroup>
@@ -122,6 +122,9 @@
       <Filter>solver</Filter>
     </ClInclude>
     <ClInclude Include="solver\cuda_common.cuh">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\ParticleGenerator.h">
       <Filter>solver</Filter>
     </ClInclude>
   </ItemGroup>
