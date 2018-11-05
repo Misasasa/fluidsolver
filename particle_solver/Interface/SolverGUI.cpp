@@ -697,6 +697,7 @@ float tsum=0;
 float tshow=0;
 char tmp[100];
 
+float frametimer=0;
 
 void SolverGUI::render() {
 
@@ -718,8 +719,14 @@ void SolverGUI::render() {
 		sprintf(tmp, "%f mspf %d", tshow, frameNo);
 		glutSetWindowTitle(tmp);
 		
-		if(frameNo%2==0 && bTakeSnapshot)
-			takeSnapshot();
+		if (bTakeSnapshot) {
+			frametimer += solver->dt;
+			if (frametimer>1/60.0) {
+				takeSnapshot();
+				frametimer = 0;
+			}
+		}
+			
 		frameNo++;
 	}
 	

@@ -84,6 +84,7 @@ struct SimData_SPH {
 
 	cfloat3* sortedPos;
 	cfloat3* sortedVel;
+	cfloat3* sortedNormal;
 	cfloat4* sortedColor;
 	int* sortedType;
 	int* sortedGroup;

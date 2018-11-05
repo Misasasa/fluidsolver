@@ -176,11 +176,8 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClCompile Include="Interface\RenderObject.cpp" />
     <ClCompile Include="Interface\SolverGUI.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="solver\cloth.cpp" />
     <ClCompile Include="solver\particle_common.cpp" />
     <ClCompile Include="solver\pbfsolver.cpp" />
-    <ClCompile Include="solver\addParticles.cpp" />
-    <ClCompile Include="solver\setupscene.cpp" />
     <ClCompile Include="solver\sph_solver.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -198,7 +195,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <ClInclude Include="Interface\SolverInfo.h" />
     <ClInclude Include="Solver.h" />
     <ClInclude Include="solver\cuda_common.cuh" />
-    <ClInclude Include="solver\param.h" />
     <ClInclude Include="solver\ParticleGenerator.h" />
     <ClInclude Include="solver\particle_common.h" />
     <ClInclude Include="solver\pbfsolver.h" />

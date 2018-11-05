@@ -13,4 +13,5 @@ public:
 
 	cfloat3 domainMin;
 	cfloat3 domainMax;
+	float dt;
 };

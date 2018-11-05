@@ -120,6 +120,7 @@ __global__ void reorderDataAndFindCellStartD(
 		
 		data.sortedPos[index] = pos;
 		data.sortedVel[index] = vel;
+		data.sortedNormal[index] = data.normal[sortedIndex];
 		data.sortedColor[index] =  data.color[sortedIndex];
 		data.sortedMass[index] =   data.mass[sortedIndex];
 		data.sortedType[index] =   data.type[sortedIndex];
@@ -141,19 +142,22 @@ __device__ void PressureCell(cint3 gridPos, int index, cfloat3 pos, float& densi
 		
 		for (uint j = startIndex; j < endIndex; j++)
 		{
-			if (j != index && data.type[j]==TYPE_FLUID)
+			if (j != index )
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
 				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
 
-				if (d2 >= sr2 || d2 < 0.000001)
+				if (d2 >= sr2)
 					continue;
 
 				float d = sqrt(d2);
 
 				float c2 = sr2 - d2;
-				density += c2*c2*c2 * data.mass[j];
+				if(data.type[j]==TYPE_FLUID)
+					density += c2*c2*c2 * data.mass[j];
+				//if (data.type[j]==TYPE_BOUNDARY)
+				//	density += c2*c2*c2 * data.mass[index];
 			}
 		}
 		
@@ -195,18 +199,16 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 
 		for (uint j = startIndex; j < endIndex; j++)
 		{
+			cfloat3 pos2 = data.pos[j];
+			cfloat3 xij = pos - pos2;
+			float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+			float d = sqrt(d2);
+			
 			if (j != index && data.type[j]==TYPE_FLUID)
 			{
-				cfloat3 pos2 = data.pos[j];
-				cfloat3 xij = pos - pos2;
-				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
-
-				if (d2 >= sr2 || d2 < 0.000001)
+				if (d2 >= sr2)
 					continue;
-
-				float d = sqrt(d2);
 				float c = sr - d;
-				
 				//pressure
 				float nablaw = dParam.kspikydiff * c * c / d;
 				float pc = nablaw *data.mass[j]* (data.pressure[j]/data.density[j]/data.density[j]
@@ -217,6 +219,58 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 				float vc = nablaw * d2 / (d2 + 0.01 * sr2)
 					*data.mass[j]/data.density[j]*2* dParam.viscosity;
 				force += (data.vel[index]-data.vel[j])*vc;
+
+				//artificial visc
+				/*
+				cfloat3 vij = data.vel[index] - data.vel[j];
+				float xv = dot(vij, xij);
+				if (xv < 0) {
+					float c = sr - d;
+					float nablaw = dParam.kspikydiff * c * c / d;
+					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float pi = -visc * xv /(d2 + 0.01*sr2);
+					force += xij * pi * nablaw * data.mass[j] * (-1);
+				}
+				*/
+			}
+
+			if (data.type[j]==TYPE_BOUNDARY) {
+				float B=1;
+				//float y = abs(dot(xij, data.normal[j]));
+				//float x = sqrt(d2 - y*y);
+				//if(x<dParam.spacing)
+				//	B = 1 - x/dParam.spacing;
+				
+				float q = d/sr;
+				if (q<0.66666) {
+					B *= 0.66666;
+				}
+				else if (q<1) {
+					B *= 2*q - 1.5*q*q;
+				}
+				else if (q<2) {
+					B *= 0.5 * (2-q)*(2-q);
+				}
+				else
+					B = 0;
+
+				B *= 0.02 * 88.5*88.5 /d;
+
+				float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
+				//force += data.normal[j]*magnitude;
+				force += xij * magnitude;
+
+				//artificial visc
+				cfloat3 vij = data.vel[index] - data.vel[j];
+				float xv = dot(vij, xij);
+				if (xv < 0) {
+					float c = sr - d;
+					float nablaw = dParam.kspikydiff * c * c / d;
+					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float pi = -visc * xv /(d2 + 0.01*sr2);
+					force += xij * pi * nablaw * data.mass[j] * (-1);
+				}
+				
 			}
 		}
 	}

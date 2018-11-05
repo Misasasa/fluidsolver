@@ -11,9 +11,11 @@ namespace sph{
 extern SimParam_SPH hParam;
 
 void SPHSolver::copy2Device() {
+	numP = hPos.size();
 
 	cudaMemcpy(dData.pos,	hPos.data(), numP * sizeof(cfloat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(dData.vel,	hVel.data(), numP * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(dData.normal, hNormal.data(), numP * sizeof(cfloat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(dData.color, hColor.data(), numP * sizeof(cfloat4), cudaMemcpyHostToDevice);
 	cudaMemcpy(dData.type,  hType.data(), numP * sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dData.group, hGroup.data(), numP * sizeof(int), cudaMemcpyHostToDevice);
@@ -44,12 +46,13 @@ void SPHSolver::sort() {
 
 	reorderDataAndFindCellStart(dData, numP, numGC);
 	
-	cudaMemcpy(dData.pos,		dData.sortedPos, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(dData.vel,		dData.sortedVel, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(dData.color,		dData.sortedColor, numP * sizeof(cfloat4), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(dData.type,		dData.sortedType, numP * sizeof(int), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(dData.group,		dData.sortedGroup, numP * sizeof(int), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(dData.mass,		dData.sortedMass, numP * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.pos,		dData.sortedPos,	numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.vel,		dData.sortedVel,	numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.normal,	dData.sortedNormal, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.color,		dData.sortedColor,	numP * sizeof(cfloat4), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.type,		dData.sortedType,	numP * sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.group,		dData.sortedGroup,	numP * sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.mass,		dData.sortedMass,	numP * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.uniqueId,	dData.sortedUniqueId, numP * sizeof(int), cudaMemcpyDeviceToDevice);
 	
 }
@@ -246,10 +249,12 @@ void SPHSolver::loadParam(char* xmlpath) {
 	
 	runmode = 0;
 	bEmitParticle = false;
+	dt = hParam.dt;
 }
 
 void SPHSolver::setupHostBuffer() {
 	int maxNP = hParam.maxpnum;
+	/*
 	hPos.resize(maxNP);
 	hColor.resize(maxNP);
 	hVel.resize(maxNP);
@@ -258,19 +263,11 @@ void SPHSolver::setupHostBuffer() {
 	hMass.resize(maxNP);
 	hUniqueId.resize(maxNP);
 	hIndexTable.resize(maxNP);
+	*/
 }
 
 int SPHSolver::addDefaultParticle() {
-	if (numP ==hParam.maxpnum)
-		return -1;
-	else {
-		hMass[numP] = 0;
-		hVel[numP].Set(0, 0, 0);
-		hUniqueId[numP] = numP;
-
-		numP++;
-		return numP-1;
-	}
+	return 0;
 }
 
 
@@ -289,19 +286,15 @@ void SPHSolver::addfluidvolumes() {
 		for (float x=xmin.x; x<xmax.x; x+=spacing)
 			for (float y=xmin.y; y<xmax.y; y+=spacing)
 				for (float z=xmin.z; z<xmax.z; z+=spacing) {
-
-					int pid = addDefaultParticle();
-					if (pid==-1) {
-						printf("%d particles added. Particle Limit Reached.\n", addcount);
-						return;
-					}
+					hPos.push_back(cfloat3(x, y, z));
+					hColor.push_back(cfloat4(0.7, 0.75, 0.95, 1));
+					hNormal.push_back(cfloat3(0,0,0));
+					hUniqueId.push_back(numP);
+					hVel.push_back(cfloat3(0, 0, 0));
+					hType.push_back(TYPE_FLUID);
+					hMass.push_back(mp);
+					hGroup.push_back(0);
 					addcount += 1;
-
-					hPos[pid] = cfloat3(x, y, z);
-					hColor[pid] = cfloat4(0.7, 0.75, 0.95, 1);
-					hType[pid] = TYPE_FLUID;
-					hMass[pid] = mp;
-					hGroup[pid] = 0;
 				}
 
 		printf("fluid block No. %d has %d particles.\n", i+1, addcount);
@@ -312,17 +305,17 @@ void SPHSolver::addfluidvolumes() {
 void SPHSolver::loadPO(ParticleObject* po) {
 	float spacing = hParam.spacing;
 	float pden = hParam.restdensity;
-	float mp   = spacing*spacing*spacing* pden;
+	float mp   = spacing*spacing*spacing* pden*2;
 
 	for (int i=0; i<po->pos.size(); i++) {
-		int pid = addDefaultParticle();
-		if(pid==-1)
-			break;
-		hPos[pid] = po->pos[i];
-		hColor[pid] = cfloat4(1,1,1,0.7);
-		hType[pid] = po->type[i];
-		hMass[pid] = mp;
-		hGroup[pid] = 0;
+		hPos.push_back(po->pos[i]);
+		hColor.push_back(cfloat4(1,1,1,0.7));
+		hUniqueId.push_back(numP);
+		hVel.push_back(cfloat3(0, 0, 0));
+		hType.push_back(po->type[i]);
+		hNormal.push_back(po->normal[i]);
+		hMass.push_back(mp);
+		hGroup.push_back(0);
 	}
 }
 
@@ -349,6 +342,8 @@ void SPHSolver::setupDeviceBuffer() {
 
 	//particle
 	int maxpnum = hParam.maxpnum;
+	if(maxpnum < hPos.size())
+		maxpnum = hPos.size();
 
 	cudaMalloc(&dData.pos, maxpnum * sizeof(float3));
 	cudaMalloc(&dData.vel, maxpnum * sizeof(float3));
@@ -360,13 +355,16 @@ void SPHSolver::setupDeviceBuffer() {
 	cudaMalloc(&dData.density, maxpnum * sizeof(float));
 	cudaMalloc(&dData.pressure, maxpnum * sizeof(float));
 	cudaMalloc(&dData.force, maxpnum*sizeof(cfloat3));
-	
+	cudaMalloc(&dData.normal, maxpnum*sizeof(cfloat3));
+
+
 	cudaMalloc(&dData.sortedPos, maxpnum * sizeof(float3));
 	cudaMalloc(&dData.sortedVel, maxpnum * sizeof(float3));
 	cudaMalloc(&dData.sortedColor, maxpnum * sizeof(cfloat4));
 	cudaMalloc(&dData.sortedMass, maxpnum * sizeof(float));
 	cudaMalloc(&dData.sortedType, maxpnum * sizeof(int));
 	cudaMalloc(&dData.sortedGroup, maxpnum * sizeof(int));
+	cudaMalloc(&dData.sortedNormal, maxpnum*sizeof(cfloat3));
 	cudaMalloc(&dData.sortedUniqueId, maxpnum * sizeof(int));
 	cudaMalloc(&dData.indexTable, maxpnum * sizeof(int));
 

@@ -17,6 +17,7 @@ public:
 	//vecf3	hPos;
 	//vecf4	hColor;
 	vecf3   hVel;
+	vecf3	hNormal;
 	veci	hType;
 	veci	hGroup;
 	vecf	hMass;

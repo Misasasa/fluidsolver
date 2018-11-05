@@ -2,7 +2,7 @@
 	<AccelLimit>	1500.0		</AccelLimit>
 	<VelLimit>		100		</VelLimit>
 	<Gravity>	0,0,0		</Gravity>
-	<VolMin> -0.2, -0.01, -0.2 </VolMin>
+	<VolMin> -0.2, 0, -0.2 </VolMin>
 	<VolMax>  0.2,  0.8,   0.2 </VolMax>
 	<SceneId> 0 </SceneId>
 </Fluid>
@@ -11,14 +11,14 @@
 
 	<Name>		Test 	</Name>
 
-	<MaxPNum> 50000 </MaxPNum>
+	<MaxPNum> 100000 </MaxPNum>
 	<TypeNum> 3 </TypeNum>
 
-	<DT> 0.0002 </DT>
+	<DT> 0.0004 </DT>
 	<PSpacing> 0.005 </PSpacing>
-	<SmoothRatio> 1.3 </SmoothRatio>
+	<SmoothRatio> 1.6 </SmoothRatio>
 	
-	<Viscosity>	 0.001	</Viscosity>
+	<Viscosity>	 0.0005	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 
@@ -30,7 +30,7 @@
 	<ViscRatio>    1,   1,   1   </ViscRatio>
 
 	<Vol>
-		<VolMin>	-0.05,  0,  -0.05	</VolMin>
+		<VolMin>	-0.05,  0.015,  -0.05	</VolMin>
 		<VolMax>	0.05,  0.2,  0.05	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 	</Vol>
@@ -51,7 +51,7 @@
 </MultiScene>
 
 <BoundInfo id="1">
-	<Viscosity>	100.0		</Viscosity>
+	<Viscosity>	0.0001		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>
 	<Mass>		0.00010543	</Mass>
 	<BoundStiff>	5000	</BoundStiff>
