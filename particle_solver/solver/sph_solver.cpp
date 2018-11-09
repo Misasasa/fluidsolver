@@ -309,7 +309,7 @@ void SPHSolver::loadPO(ParticleObject* po) {
 
 	for (int i=0; i<po->pos.size(); i++) {
 		hPos.push_back(po->pos[i]);
-		hColor.push_back(cfloat4(1,1,1,0.7));
+		hColor.push_back(cfloat4(1,1,1,0.2));
 		hUniqueId.push_back(numP);
 		hVel.push_back(cfloat3(0, 0, 0));
 		hType.push_back(po->type[i]);

@@ -186,6 +186,8 @@ __global__ void computeP(SimData_SPH data, int numP) {
 	density *= dParam.kpoly6;
 	data.density[index] = density;
 	data.pressure[index] = dParam.pressureK * (powf(density/dParam.restdensity, 7) - 1);
+	//if(data.pressure[index]<0)
+	//	data.pressure[index] = 0;
 }
 
 

@@ -9,13 +9,13 @@
 
     <Box>
         <xmin> -0.15, 0.005, -0.15 </xmin>
-        <xmax>  0.15, 0.2, 0.15 </xmax>
+        <xmax>  0.15, 0.3, 0.15 </xmax>
         <spacing> 0.005 </spacing>
     </Box>
 
     <Box>
         <xmin> -0.155, 0.000, -0.155 </xmin>
-        <xmax>  0.155, 0.2, 0.155 </xmax>
+        <xmax>  0.155, 0.3, 0.155 </xmax>
         <spacing> 0.005 </spacing>
     </Box>
 
