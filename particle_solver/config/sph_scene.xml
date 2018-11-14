@@ -15,7 +15,7 @@
 	<MaxPNum> 100000 </MaxPNum>
 	<TypeNum> 3 </TypeNum>
 
-	<DT> 0.0004 </DT>
+	<DT> 0.004 </DT>
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 1.6 </SmoothRatio>
 	
@@ -63,8 +63,8 @@
 	<ViscRatio>    1,   1,   1   </ViscRatio>
 
 	<Vol>
-		<VolMin>	-0.05,  0.1,  -0.05	</VolMin>
-		<VolMax>	0.05,  0.3,  0.05	</VolMax>
+		<VolMin>	-0.05,  0.01,  -0.05	</VolMin>
+		<VolMax>	0.05,  0.4,  0.05	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 	</Vol>
     <!--Vol>

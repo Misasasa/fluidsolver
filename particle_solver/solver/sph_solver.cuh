@@ -92,6 +92,13 @@ struct SimData_SPH {
 	float* sortedMass;
 	int* indexTable;
 
+	// DFSPH
+	float* alpha;
+	cfloat3* v_star; //predicted vel
+	cfloat3* x_star; //predicted pos
+	float* pstiff;
+	cfloat3* sortedV_star;
+
 	//edge data
 	//edgeConstraint* edgeCons;
 	//edgeConsVar* edgeConsVar;
@@ -155,10 +162,31 @@ void applyXSPH(
 	int numParticles
 );
 
-
+//Standard SPH
 void computePressure(SimData_SPH data, int numP);
 void computeForce(SimData_SPH data, int numP);
 void advect(SimData_SPH data, int numP);
 
+//DFSPH
+void computeDensityAlpha(SimData_SPH data, int numP);
+
+//compute non-pressure force & predict velocity
+void computeNonPForce(SimData_SPH data, int numP);
+
+//correct density error & update positions
+void correctDensityError(SimData_SPH data,
+	int numP,
+	int maxiter,
+	float ethres,
+	bool bDebug
+);
+
+//correct divergence error & update velocity
+void correctDivergenceError(SimData_SPH data, 
+	int numP,
+	int maxiter,
+	float ethres,
+	bool bDebug
+);
 
 };

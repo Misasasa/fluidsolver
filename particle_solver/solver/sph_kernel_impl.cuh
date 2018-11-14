@@ -126,12 +126,13 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sortedType[index] =   data.type[sortedIndex];
 		data.sortedGroup[index] =  data.group[sortedIndex];
 		data.sortedUniqueId[index] = data.uniqueId[sortedIndex];
+		data.sortedV_star[index] = data.v_star[sortedIndex];
 		data.indexTable[data.sortedUniqueId[index]] = index;
 	}
 }
 
 
-__device__ void PressureCell(cint3 gridPos, int index, cfloat3 pos, float& density, SimData_SPH data) {
+__device__ void DensityCell(cint3 gridPos, int index, cfloat3 pos, float& density, SimData_SPH data) {
 	uint gridHash = calcGridHash(gridPos);
 	uint startIndex = data.gridCellStart[gridHash];
 	float sr = dParam.smoothradius;
@@ -177,7 +178,7 @@ __global__ void computeP(SimData_SPH data, int numP) {
 		for(int y=-1;y<=1;y++)
 			for (int x=-1; x<=1; x++) {
 				cint3 nPos = gridPos + cint3(x,y,z);
-				PressureCell(nPos, index, pos, density, data);
+				DensityCell(nPos, index, pos, density, data);
 			}
 	
 	
@@ -335,11 +336,443 @@ __global__ void advectAndCollision(SimData_SPH data, int numP) {
 	data.pos[index] += data.vel[index] * dParam.dt;
 
 	clampBoundary(index, data);
+}
+
+
+
+
+
+
+
+
+
+
+//====================================================
+//
+//                    DFSPH
+//
+//====================================================
+
+
+__device__ void DensityAlphaCell(cint3 gridPos,
+	int index,
+	cfloat3 pos,
+	float& density,
+	float& mwij,
+	cfloat3& mwij3,
+	SimData_SPH data) 
+{
+	uint gridHash = calcGridHash(gridPos);
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex != 0xffffffff) {
+		uint endIndex = data.gridCellEnd[gridHash];
+		//printf("%d %d\n", startIndex, endIndex);
+
+		for (uint j = startIndex; j < endIndex; j++)
+		{
+			if (j != index)
+			{
+				cfloat3 pos2 = data.pos[j];
+				cfloat3 xij = pos - pos2;
+				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+
+				if (d2 >= sr2)
+					continue;
+
+				float d = sqrt(d2);
+				float c2 = sr2 - d2;
+				float c = sr - d;
+				float nablaw = dParam.kspikydiff * c * c / d;
+				
+				if (data.type[j]==TYPE_FLUID){
+					density += c2*c2*c2 * data.mass[j];
+					cfloat3 aij = xij * nablaw * data.mass[j];
+					mwij += dot(aij,aij);
+					mwij3 += aij;
+				}
+			}
+		}
+
+	}
+}
+
+__global__ void computeDensityAlpha_kernel(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	float density = 0;
+	float mwij = 0;
+	cfloat3 mwij3(0,0,0);
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				DensityAlphaCell(nPos, 
+					index, 
+					pos, 
+					density,
+					mwij,
+					mwij3,
+					data);
+			}
+
+
+	float sr2 = dParam.smoothradius * dParam.smoothradius;
+	density += sr2*sr2*sr2*data.mass[index];
+	density *= dParam.kpoly6;
+	data.density[index] = density;
 	
+	float denom = dot(mwij3, mwij3) + mwij;
+	if(denom<0.000001)
+		denom = 0.000001;//clamp for stability
+	data.alpha[index] = data.density[index] / denom;
+
+}
+
+
+__device__ void computeNPFCell(cint3 gridPos,
+	int index,
+	cfloat3 pos,
+	cfloat3& force,
+	SimData_SPH data)
+{
+	uint gridHash = calcGridHash(gridPos);
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex != 0xffffffff) {
+		uint endIndex = data.gridCellEnd[gridHash];
+
+		for (uint j = startIndex; j < endIndex; j++)
+		{
+			cfloat3 pos2 = data.pos[j];
+			cfloat3 xij = pos - pos2;
+			float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+			float d = sqrt(d2);
+
+			if (j != index && data.type[j]==TYPE_FLUID)
+			{
+				if (d2 >= sr2)
+					continue;
+				float c = sr - d;
+				//pressure
+				float nablaw = dParam.kspikydiff * c * c / d;
+				//float pc = nablaw *data.mass[j]* (data.pressure[j]/data.density[j]/data.density[j]
+				//	+ data.pressure[index]/data.density[index]/data.density[index]);
+				//force += xij * pc * (-1);
+
+				//viscosity
+				float vc = nablaw * d2 / (d2 + 0.01 * sr2)
+					*data.mass[j]/data.density[j]*2* dParam.viscosity;
+				force += (data.vel[index]-data.vel[j])*vc;
+			}
+
+			if (data.type[j]==TYPE_BOUNDARY) {
+				float B=1;
+				
+				float q = d/sr;
+				if (q<0.66666) {
+					B *= 0.66666;
+				}
+				else if (q<1) {
+					B *= 2*q - 1.5*q*q;
+				}
+				else if (q<2) {
+					B *= 0.5 * (2-q)*(2-q);
+				}
+				else
+					B = 0;
+
+				B *= 0.02 * 88.5*88.5 /d;
+
+				float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
+				force += xij * magnitude;
+
+				//artificial visc
+				cfloat3 vij = data.vel[index] - data.vel[j];
+				float xv = dot(vij, xij);
+				if (xv < 0) {
+					float c = sr - d;
+					float nablaw = dParam.kspikydiff * c * c / d;
+					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float pi = -visc * xv /(d2 + 0.01*sr2);
+					force += xij * pi * nablaw * data.mass[j] * (-1);
+				}
+
+			}
+		}
+	}
+}
+
+__global__ void computeNPF_kernel(SimData_SPH data, int numP)
+{
+	//viscosity, collision, gravity
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if(data.type[index]!=TYPE_FLUID) {
+		data.v_star[index] = cfloat3(0,0,0);
+		return;
+	}
+
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	float density = 0;
+	cfloat3 force(0, 0, 0);
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				computeNPFCell(nPos,
+					index,
+					pos,
+					force,
+					data);
+			}
+
+	force += cfloat3(0,-9.8,0); //gravity
+	//predict velocity
+	data.v_star[index] = data.vel[index] + force*dParam.dt;
+}
+
+__device__ void DensityChangeCell(
+	cint3 gridPos,
+	int index,
+	cfloat3 pos,
+	float& densChange,
+	SimData_SPH data
+)
+{
+	uint gridHash = calcGridHash(gridPos);
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex != 0xffffffff) {
+		uint endIndex = data.gridCellEnd[gridHash];
+		//printf("%d %d\n", startIndex, endIndex);
+
+		for (uint j = startIndex; j < endIndex; j++)
+		{
+			if (j != index)
+			{
+				cfloat3 pos2 = data.pos[j];
+				cfloat3 xij = pos - pos2;
+				cfloat3 vij = data.v_star[index] - data.v_star[j];
+				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+
+				if (d2 >= sr2)
+					continue;
+
+				float d = sqrt(d2);
+				float c2 = sr2 - d2;
+				float c = sr - d;
+				float nablaw = dParam.kspikydiff * c * c / d;
+
+				if (data.type[j]==TYPE_FLUID) {
+					
+					cfloat3 nwij = xij * nablaw * data.mass[j];
+					densChange += dot(vij, nwij);
+				}
+			}
+		}
+
+	}
+}
 
 
 
 
+__global__ void solveDivergenceStiff(SimData_SPH data, int numP) {
+	
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID){
+		data.pstiff[index] = 0;
+		return;
+	}
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	float densChange = 0;
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				DensityChangeCell(nPos,
+					index,
+					pos,
+					densChange,
+					data);
+			}
+	if(densChange < 0 ) densChange = 0;
+	data.pstiff[index] = densChange/ dParam.dt * data.alpha[index];
+}
+
+
+
+__device__ void PredictDensityCell(
+	cint3 gridPos,
+	int index,
+	cfloat3 pos,
+	float& density,
+	SimData_SPH data
+)
+{
+	uint gridHash = calcGridHash(gridPos);
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex != 0xffffffff) {
+		uint endIndex = data.gridCellEnd[gridHash];
+		//printf("%d %d\n", startIndex, endIndex);
+
+		for (uint j = startIndex; j < endIndex; j++)
+		{
+			if (j != index)
+			{
+				cfloat3 pos2 = data.pos[j];
+				cfloat3 xij = pos - pos2;
+				cfloat3 vij = data.v_star[index] - data.v_star[j];
+				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+
+				if (d2 >= sr2)
+					continue;
+
+				float d = sqrt(d2);
+				float c2 = sr2 - d2;
+				float c = sr - d;
+				float nablaw = dParam.kspikydiff * c * c / d;
+
+				if (data.type[j]==TYPE_FLUID) {
+
+					cfloat3 nwij = xij * nablaw * data.mass[j];
+					density += dot(vij, nwij) * dParam.dt;
+				}
+			}
+		}
+
+	}
+}
+
+
+__global__ void solveDensityStiff(SimData_SPH data, int numP) {
+
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) {
+		data.pstiff[index] = 0;
+		return;
+	}
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	float density = data.density[index];
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				PredictDensityCell(nPos,
+					index,
+					pos,
+					density,
+					data);
+			}
+	
+	data.pstiff[index] = (density - dParam.restdensity)*data.alpha[index]
+		/dParam.dt/dParam.dt;
+	if(data.pstiff[index]<0)
+		data.pstiff[index] = 0;
+}
+
+__device__ void applyPressureCell(
+	cint3 gridPos,
+	int index,
+	cfloat3 pos,
+	cfloat3& force,
+	SimData_SPH data
+)
+{
+	uint gridHash = calcGridHash(gridPos);
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex != 0xffffffff) {
+		uint endIndex = data.gridCellEnd[gridHash];
+		//printf("%d %d\n", startIndex, endIndex);
+
+		for (uint j = startIndex; j < endIndex; j++)
+		{
+			if (j != index)
+			{
+				cfloat3 pos2 = data.pos[j];
+				cfloat3 xij = pos - pos2;
+				
+				float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+
+				if (d2 >= sr2)
+					continue;
+
+				float d = sqrt(d2);
+				float c2 = sr2 - d2;
+				float c = sr - d;
+				float nablaw = dParam.kspikydiff * c * c / d;
+
+				if (data.type[j]==TYPE_FLUID) {
+
+					cfloat3 nwij = xij * nablaw * data.mass[j];
+					force += nwij * (data.pstiff[index]/data.density[index]
+						+ data.pstiff[j]/data.density[j]);
+					//force += nwij * data.pstiff[index]/data.density[index];
+				}
+			}
+		}
+
+	}
+}
+
+__global__ void applyPStiff(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	cfloat3 force(0,0,0);
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				applyPressureCell(nPos,
+					index,
+					pos,
+					force,
+					data);
+			}
+	
+	data.v_star[index] += force * dParam.dt *(-1);
+}
+
+__global__ void updatePosition(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	data.pos[index] += data.v_star[index] * dParam.dt;
+}
+
+
+__global__ void updateVelocities(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	data.vel[index] = data.v_star[index];
 }
 
 

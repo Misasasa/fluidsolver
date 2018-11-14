@@ -9,6 +9,11 @@
 
 namespace sph{
 
+
+#define SPH 0
+#define DFSPH 1
+
+
 class SPHSolver : public Solver {
 
 public:
@@ -25,6 +30,8 @@ public:
 	veci	hUniqueId;
 	veci	hIndexTable;
 	//veci	hJetFlag;
+	vecf	hDensity;
+
 
 	SimData_SPH dData;
 	
@@ -61,7 +68,7 @@ public:
 
 	void sort();
 	void solveSPH();
-
+	void solveDFSPH();
 
 
 	void setup();
@@ -69,6 +76,7 @@ public:
 	void addfluidvolumes();
 	void fluidSrcEmit();
 
+	void setupDFSPH();
 
 	//void addwall(cfloat3 min, cfloat3 max);
 	//void addopenbox(cfloat3 min, cfloat3 max, float thickness);

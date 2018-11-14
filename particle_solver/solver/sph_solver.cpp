@@ -54,29 +54,63 @@ void SPHSolver::sort() {
 	cudaMemcpy(dData.group,		dData.sortedGroup,	numP * sizeof(int), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.mass,		dData.sortedMass,	numP * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.uniqueId,	dData.sortedUniqueId, numP * sizeof(int), cudaMemcpyDeviceToDevice);
-	
+	cudaMemcpy(dData.v_star,    dData.sortedV_star, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::solveSPH() {
 
-	//computePressure
+	sort();
+
 	computePressure(dData, numP);
 
-	//computeForce
 	computeForce(dData, numP);
 
-	//advect
 	advect(dData, numP);
 
-
+	copy2Host();
 }
+
+
+
+void SPHSolver::setupDFSPH() {
+	setupFluidScene();
+	sort();
+	computeDensityAlpha(dData, numP);
+}
+
+void SPHSolver::solveDFSPH() {
+	
+
+	//compute non-pressure force
+	//predict velocities
+	computeNonPForce(dData, numP);
+
+	//correct density
+	correctDensityError(dData, numP, 5, 1, false);
+
+	//update neighbors
+	sort();
+
+	//update rho and alpha
+	computeDensityAlpha(dData,numP);
+
+	//correct divergence
+	//update velocities
+	correctDivergenceError(dData, numP, 5, 1, false);
+
+	copy2Host();
+}
+
 
 void SPHSolver::step() {
 
 	if (numP>0) {
-		sort();
-		solveSPH();
-		copy2Host();
+		switch (runmode) {
+		case SPH:
+			solveSPH(); break;
+		case DFSPH:
+			solveDFSPH(); break;
+		}
 	}
 
 	//if(bEmitParticle)
@@ -247,7 +281,8 @@ void SPHSolver::loadParam(char* xmlpath) {
 	//anisotropic kernels
 	
 	
-	runmode = 0;
+	//runmode = SPH;
+	runmode = DFSPH;
 	bEmitParticle = false;
 	dt = hParam.dt;
 }
@@ -267,16 +302,27 @@ void SPHSolver::setupHostBuffer() {
 }
 
 int SPHSolver::addDefaultParticle() {
-	return 0;
+	hPos.push_back(cfloat3(0, 0, 0));
+	hColor.push_back(cfloat4(1, 1, 1, 1));
+	hNormal.push_back(cfloat3(0, 0, 0));
+	hUniqueId.push_back(numP);
+	hVel.push_back(cfloat3(0, 0, 0));
+	hType.push_back(TYPE_FLUID);
+	hMass.push_back(0);
+	hGroup.push_back(0);
+	
+	return hPos.size()-1;
 }
 
 
 void SPHSolver::addfluidvolumes() {
-	int addcount=0;
+	
 
 	for (int i=0; i<fvs.size(); i++) {
 		cfloat3 xmin = fvs[i].xmin;
 		cfloat3 xmax = fvs[i].xmax;
+		int addcount=0;
+
 		//float* vf    = fvs[i].volfrac;
 		float spacing = hParam.spacing;
 		float pden = hParam.restdensity;
@@ -286,18 +332,16 @@ void SPHSolver::addfluidvolumes() {
 		for (float x=xmin.x; x<xmax.x; x+=spacing)
 			for (float y=xmin.y; y<xmax.y; y+=spacing)
 				for (float z=xmin.z; z<xmax.z; z+=spacing) {
-					hPos.push_back(cfloat3(x, y, z));
-					hColor.push_back(cfloat4(0.7, 0.75, 0.95, 1));
-					hNormal.push_back(cfloat3(0,0,0));
-					hUniqueId.push_back(numP);
-					hVel.push_back(cfloat3(0, 0, 0));
-					hType.push_back(TYPE_FLUID);
-					hMass.push_back(mp);
-					hGroup.push_back(0);
+					int pid = addDefaultParticle();
+					hPos[pid] = cfloat3(x, y, z);
+					hColor[pid]=cfloat4(0.7, 0.75, 0.95, 1);
+					hType[pid] = TYPE_FLUID;
+					hMass[pid] = mp;
+					hGroup[pid] = 0;
 					addcount += 1;
 				}
 
-		printf("fluid block No. %d has %d particles.\n", i+1, addcount);
+		printf("fluid block No. %d has %d particles.\n", i, addcount);
 	}
 }
 	
@@ -308,14 +352,13 @@ void SPHSolver::loadPO(ParticleObject* po) {
 	float mp   = spacing*spacing*spacing* pden*2;
 
 	for (int i=0; i<po->pos.size(); i++) {
-		hPos.push_back(po->pos[i]);
-		hColor.push_back(cfloat4(1,1,1,0.2));
-		hUniqueId.push_back(numP);
-		hVel.push_back(cfloat3(0, 0, 0));
-		hType.push_back(po->type[i]);
-		hNormal.push_back(po->normal[i]);
-		hMass.push_back(mp);
-		hGroup.push_back(0);
+		int pid = addDefaultParticle();
+		hPos[pid] = po->pos[i];
+		hColor[pid] = cfloat4(1,1,1,0.2);
+		hType[pid] = TYPE_BOUNDARY;
+		hNormal[pid] = po->normal[i];
+		hMass[pid] = mp;
+		hGroup[pid] = 0;
 	}
 }
 
@@ -335,15 +378,18 @@ void SPHSolver::setupFluidScene() {
 }
 
 void SPHSolver::setup() {
-	setupFluidScene();
+	//setupFluidScene();
+
+	setupDFSPH();
 }
+
+
+
 
 void SPHSolver::setupDeviceBuffer() {
 
 	//particle
-	int maxpnum = hParam.maxpnum;
-	if(maxpnum < hPos.size())
-		maxpnum = hPos.size();
+	int maxpnum = hPos.size();
 
 	cudaMalloc(&dData.pos, maxpnum * sizeof(float3));
 	cudaMalloc(&dData.vel, maxpnum * sizeof(float3));
@@ -367,6 +413,12 @@ void SPHSolver::setupDeviceBuffer() {
 	cudaMalloc(&dData.sortedNormal, maxpnum*sizeof(cfloat3));
 	cudaMalloc(&dData.sortedUniqueId, maxpnum * sizeof(int));
 	cudaMalloc(&dData.indexTable, maxpnum * sizeof(int));
+	
+	cudaMalloc(&dData.alpha, maxpnum * sizeof(float));
+	cudaMalloc(&dData.v_star, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&dData.x_star, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&dData.pstiff, maxpnum * sizeof(float));
+	cudaMalloc(&dData.sortedV_star, maxpnum * sizeof(cfloat3));
 
 	int glen = hParam.gridres.prod();
 
