@@ -12,6 +12,7 @@ namespace sph{
 
 #define SPH 0
 #define DFSPH 1
+#define MSPH 2
 
 
 class SPHSolver : public Solver {
@@ -30,7 +31,8 @@ public:
 	veci	hUniqueId;
 	veci	hIndexTable;
 	//veci	hJetFlag;
-	vecf	hDensity;
+	vecf	hDensity; //rest density
+	vecf	hVFrac; //volume fraction
 
 
 	SimData_SPH dData;
@@ -39,6 +41,7 @@ public:
 	vector<FluidSrc> fss;
 
 	//int numP;
+	int numFluidP;
 	int numGC;
 	int frameNo;
 	int caseid;
@@ -62,38 +65,33 @@ public:
 	void setupHostBuffer();
 	void setupDeviceBuffer();
 	void copy2Device();
-	void copy2Device_partial(int begin, int end);
+	void copy2Device(int begin, int end);
 	void copy2Host();
 	void copy2host_full();
 
 	void sort();
 	void solveSPH();
 	void solveDFSPH();
-
+	void solveMultiphaseSPH(); //with DFSPH
 
 	void setup();
 	int addDefaultParticle();
 	void addfluidvolumes();
 	void fluidSrcEmit();
 
+	// DFSPH
 	void setupDFSPH();
 
-	//void addwall(cfloat3 min, cfloat3 max);
-	//void addopenbox(cfloat3 min, cfloat3 max, float thickness);
-	//void loadboundary(string fname);
-	//void loadParticleSample(string fname);
+	// Multiphase Fluid
+	void addMultiphaseFluidVolumes();
+
 	void loadPO(ParticleObject* po);
 
 	//Setup Scenes
 	void parseParam(char* xmlpath);
 	void loadParam(char* xmlpath);
-	void loadFluidVols(XMLElement* sceneEle);
-
-	void dumpRenderingData();
-	void dumpSimulationData();
+	
 	void dumpSimulationDataText();
-	void loadSimulationData(char* filepath);
-	void loadSimulationData(char* filepath, cmat4& materialMat);
 	void loadSimulationDataText(char* filepath, cmat4& materialMat);
 
 	void setupFluidScene();

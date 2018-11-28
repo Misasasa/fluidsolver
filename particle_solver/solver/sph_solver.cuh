@@ -98,6 +98,15 @@ struct SimData_SPH {
 	cfloat3* x_star; //predicted pos
 	float* pstiff;
 	cfloat3* sortedV_star;
+	float* error;
+
+	// Multiphase Fluid
+	float* vFrac;
+	float* restDensity;
+	cfloat3* driftV;
+	float* sortedVFrac;
+	float* sortedRestDensity;
+
 
 	//edge data
 	//edgeConstraint* edgeCons;
@@ -167,7 +176,16 @@ void computePressure(SimData_SPH data, int numP);
 void computeForce(SimData_SPH data, int numP);
 void advect(SimData_SPH data, int numP);
 
-//DFSPH
+
+
+
+
+/******************************
+
+            DFSPH
+
+******************************/
+
 void computeDensityAlpha(SimData_SPH data, int numP);
 
 //compute non-pressure force & predict velocity
@@ -188,5 +206,28 @@ void correctDivergenceError(SimData_SPH data,
 	float ethres,
 	bool bDebug
 );
+
+
+
+/****************************************
+
+			Multiphase SPH
+
+****************************************/
+void computeDFAlpha_MPH(SimData_SPH data, int numP);
+void computeNonPForce_MPH(SimData_SPH data, int numP);
+void correctDensity_MPH(SimData_SPH data,
+	int numP,
+	int maxiter,
+	float ethres,
+	bool bDebug
+);
+void correctDivergence_MPH(SimData_SPH data,
+	int numP,
+	int maxiter,
+	float ethres,
+	bool bDebug
+);
+
 
 };

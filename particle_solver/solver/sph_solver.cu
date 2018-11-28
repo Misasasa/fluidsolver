@@ -159,10 +159,12 @@ void correctDensityError(SimData_SPH data,
 		solveDensityStiff <<< numBlocks, numThreads>>> (data, numP);
 		//get error
 		
-		cudaMemcpy(debug, data.pstiff, numP*sizeof(float), cudaMemcpyDeviceToHost);
-		error = 0;
-		for(int i=0; i<numP; i++)
-			error += abs(debug[i]);
+		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		error = -9999;
+		for (int i=0; i<numP; i++) {
+			error = debug[i]>error? debug[i]:error;
+		}
+			
 		if(bDebug)
 			printf("%d error: %f\n", iter, error);
 		if (error<ethres)
@@ -205,26 +207,55 @@ void correctDivergenceError(SimData_SPH data,
 	while (true && iter<maxiter) {
 		solveDivergenceStiff <<< numBlocks, numThreads>>> (data, numP);
 		
-		cudaMemcpy(debug, data.pstiff, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
 		error = 0;
 		for (int i=0; i<numP; i++)
-			error += abs(debug[i]);
+			error = debug[i]>error? debug[i]:error;		
 		
-		if (bDebug)
-			printf("%d error: %f\n", iter, error);
 		if (error<ethres)
 			break;
 		
 		applyPStiff <<<numBlocks, numThreads>>>(data, numP);
 		iter++;
 	}
-
+	if (bDebug)
+		printf("%d error: %f\n", iter, error);
 	updateVelocities<<<numBlocks, numThreads>>>(data,numP);
 }
 
 
 
 
+//==================================================
+//
+//                 Multiphase SPH
+//
+//==================================================
+
+void computeDFAlpha_MPH(SimData_SPH data, int numP) {
+	uint numThreads, numBlocks;
+	computeGridSize(numP, 256, numBlocks, numThreads);
+
+	computeDFAlpha_MPH_kernel <<< numBlocks, numThreads>>> (data, numP);
+
+}
+
+void computeNonPForce_MPH(SimData_SPH data, int numP) {
+	uint numThreads, numBlocks;
+	computeGridSize(numP, 256, numBlocks, numThreads);
+
+	computeNPF_MPH_kernel <<< numBlocks, numThreads>>> (data, numP);
+}
+
+void correctDensity_MPH(SimData_SPH data, int numP,
+	int maxiter, float ethres, bool bDebug) {
+
+}
+
+void correctDivergence_MPH(SimData_SPH data, int numP,
+	int maxiter, float ethres, bool bDebug) {
+
+}
 
 
 

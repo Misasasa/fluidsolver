@@ -22,6 +22,9 @@ void SPHSolver::copy2Device() {
 	cudaMemcpy(dData.mass, hMass.data(), numP * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(dData.uniqueId, hUniqueId.data(), numP * sizeof(int), cudaMemcpyHostToDevice);
 
+	int numPT = numP * hParam.maxtypenum;
+	cudaMemcpy(dData.vFrac, hVFrac.data(), numPT * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(dData.restDensity, hDensity.data(), numP * sizeof(float), cudaMemcpyHostToDevice);
 	copyDeviceBuffer();
 }
 
@@ -55,6 +58,8 @@ void SPHSolver::sort() {
 	cudaMemcpy(dData.mass,		dData.sortedMass,	numP * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.uniqueId,	dData.sortedUniqueId, numP * sizeof(int), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.v_star,    dData.sortedV_star, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.restDensity, dData.sortedRestDensity, numP * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.vFrac,		dData.sortedVFrac,	numP * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::solveSPH() {
@@ -79,8 +84,6 @@ void SPHSolver::setupDFSPH() {
 }
 
 void SPHSolver::solveDFSPH() {
-	
-
 	//compute non-pressure force
 	//predict velocities
 	computeNonPForce(dData, numP);
@@ -102,6 +105,39 @@ void SPHSolver::solveDFSPH() {
 }
 
 
+
+
+/*
+Still we solve multiphase model with divergence-free SPH.
+V_m denotes the volume-averaged velocity of each particle.
+*/
+void SPHSolver::solveMultiphaseSPH() {
+
+	//compute non-pressure force
+	//predict velocity
+	computeNonPForce_MPH(dData, numP);
+
+	//correct density
+	correctDensityError(dData, numP, 5, 0.1, false);
+
+	//update neighbors
+	sort();
+
+	//update rho and alpha
+	computeDensityAlpha(dData, numP);
+
+	//correct divergence
+	//update velocity
+	correctDivergenceError(dData, numP, 5, 0.1, true);
+
+	copy2Host();
+
+}
+
+
+
+
+
 void SPHSolver::step() {
 
 	if (numP>0) {
@@ -110,7 +146,11 @@ void SPHSolver::step() {
 			solveSPH(); break;
 		case DFSPH:
 			solveDFSPH(); break;
+		case MSPH:
+			solveMultiphaseSPH(); break;
 		}
+		
+
 	}
 
 	//if(bEmitParticle)
@@ -230,6 +270,8 @@ void SPHSolver::parseParam(char* xmlpath) {
 	hParam.viscosity = reader.GetFloat("Viscosity");
 	hParam.restdensity = reader.GetFloat("RestDensity");
 	hParam.pressureK = reader.GetFloat("PressureK");
+	reader.GetFloatN(hParam.densArr, hParam.maxtypenum, "DensityArray");
+	reader.GetFloatN(hParam.viscArr, hParam.maxtypenum, "ViscosityArray");
 
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fvs);
@@ -248,6 +290,7 @@ void SPHSolver::parseParam(char* xmlpath) {
 void SPHSolver::loadParam(char* xmlpath) {
 	frameNo = 0;
 	numP = 0;
+	numFluidP = 0;
 
 	parseParam(xmlpath);
 
@@ -283,6 +326,7 @@ void SPHSolver::loadParam(char* xmlpath) {
 	
 	//runmode = SPH;
 	runmode = DFSPH;
+	runmode = MSPH;
 	bEmitParticle = false;
 	dt = hParam.dt;
 }
@@ -310,6 +354,10 @@ int SPHSolver::addDefaultParticle() {
 	hType.push_back(TYPE_FLUID);
 	hMass.push_back(0);
 	hGroup.push_back(0);
+	hDensity.push_back(0);
+
+	for(int t=0; t<hParam.maxtypenum; t++)
+		hVFrac.push_back(0);
 	
 	return hPos.size()-1;
 }
@@ -344,7 +392,44 @@ void SPHSolver::addfluidvolumes() {
 		printf("fluid block No. %d has %d particles.\n", i, addcount);
 	}
 }
-	
+
+void SPHSolver::addMultiphaseFluidVolumes() {
+
+	for (int i=0; i<fvs.size(); i++) {
+		cfloat3 xmin = fvs[i].xmin;
+		cfloat3 xmax = fvs[i].xmax;
+		int addcount=0;
+
+		float* vf    = fvs[i].volfrac;
+		float spacing = hParam.spacing;
+		float pden = 0; //hParam.restdensity;
+		for(int t=0; t<hParam.maxtypenum; t++)
+			pden += hParam.densArr[t] * vf[t];
+
+		float mp   = spacing*spacing*spacing* pden;
+		float pvisc = hParam.viscosity;
+
+		for (float x=xmin.x; x<xmax.x; x+=spacing)
+			for (float y=xmin.y; y<xmax.y; y+=spacing)
+				for (float z=xmin.z; z<xmax.z; z+=spacing) {
+					int pid = addDefaultParticle();
+					hPos[pid] = cfloat3(x, y, z);
+					//hColor[pid]=cfloat4(0.7, 0.75, 0.95, 1);
+					hColor[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
+					hType[pid] = TYPE_FLUID;
+					hGroup[pid] = 0;
+					
+					hMass[pid] = mp;
+					hDensity[pid] = pden;
+					for(int t=0;  t<hParam.maxtypenum; t++)
+						hVFrac[t] = vf[t];
+
+					addcount += 1;
+				}
+
+		printf("fluid block No. %d has %d particles.\n", i, addcount);
+	}
+}
 
 void SPHSolver::loadPO(ParticleObject* po) {
 	float spacing = hParam.spacing;
@@ -366,7 +451,8 @@ void SPHSolver::setupFluidScene() {
 	loadParam("config/sph_scene.xml");
 	setupHostBuffer();
 
-	addfluidvolumes();
+	//addfluidvolumes();
+	addMultiphaseFluidVolumes();
 
 	BoundaryGenerator bg;
 	ParticleObject* boundary = bg.loadxml("script_object/box.xml");
@@ -414,11 +500,21 @@ void SPHSolver::setupDeviceBuffer() {
 	cudaMalloc(&dData.sortedUniqueId, maxpnum * sizeof(int));
 	cudaMalloc(&dData.indexTable, maxpnum * sizeof(int));
 	
+	//DFSPH
 	cudaMalloc(&dData.alpha, maxpnum * sizeof(float));
 	cudaMalloc(&dData.v_star, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&dData.x_star, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&dData.pstiff, maxpnum * sizeof(float));
 	cudaMalloc(&dData.sortedV_star, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&dData.error, maxpnum * sizeof(float));
+
+	//Multiphase
+	int ptnum = maxpnum*hParam.maxtypenum;
+	cudaMalloc(&dData.vFrac,		ptnum*sizeof(float));
+	cudaMalloc(&dData.restDensity,	maxpnum*sizeof(float));
+	cudaMalloc(&dData.driftV,		ptnum*sizeof(cfloat3));
+	cudaMalloc(&dData.sortedVFrac,	ptnum*sizeof(float));
+	cudaMalloc(&dData.sortedRestDensity,	maxpnum*sizeof(float));
 
 	int glen = hParam.gridres.prod();
 
