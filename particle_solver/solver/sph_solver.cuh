@@ -106,6 +106,8 @@ struct SimData_SPH {
 	cfloat3* driftV;
 	float* sortedVFrac;
 	float* sortedRestDensity;
+	float* massFac; // really?
+	float* sortedMassFac;
 
 
 	//edge data
@@ -228,6 +230,7 @@ void correctDivergence_MPH(SimData_SPH data,
 	float ethres,
 	bool bDebug
 );
+void updateMassFac(SimData_SPH data, int numP);
 
 
 };

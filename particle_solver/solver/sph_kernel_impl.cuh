@@ -131,6 +131,7 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sortedV_star[index] = data.v_star[sortedIndex];
 		//Multiphase
 		data.sortedRestDensity[index] = data.restDensity[sortedIndex];
+		data.sortedMassFac[index] = data.massFac[sortedIndex];
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
 	}
@@ -691,9 +692,9 @@ __global__ void solveDensityStiff(SimData_SPH data, int numP) {
 					data);
 			}
 	
-	data.pstiff[index] = (density - dParam.restdensity)*data.alpha[index]
+	data.pstiff[index] = (density - data.restDensity[index])*data.alpha[index]
 		/dParam.dt/dParam.dt;
-	data.error[index] = density - dParam.restdensity;
+	data.error[index] = density - data.restDensity[index];
 	if(data.pstiff[index]<0){
 		data.pstiff[index] = 0;
 		data.error[index] = 0;
@@ -831,11 +832,8 @@ __device__ void DFAlpha_MPH_Cell(cint3 gridPos,
 					density += c2*c2*c2 * data.mass[j];
 					cfloat3 aij = xij * nablaw * data.mass[j];
 					
-					for(int t=0; t<dParam.maxtypenum; t++)
-						densj += data.vFrac[t] / dParam.densArr[t];
-					
-					mwij += dot(aij, aij);
-					mwij3 += aij * densj;
+					mwij += dot(aij, aij) / data.massFac[j]; //second term
+					mwij3 += aij; //first term
 				}
 			}
 		}
@@ -846,6 +844,7 @@ __device__ void DFAlpha_MPH_Cell(cint3 gridPos,
 __global__ void computeDFAlpha_MPH_kernel(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
+	if(data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -872,10 +871,11 @@ __global__ void computeDFAlpha_MPH_kernel(SimData_SPH data, int numP) {
 	density *= dParam.kpoly6;
 	data.density[index] = density;
 
-	float denom = dot(mwij3, mwij3) + mwij;
+	float denom = dot(mwij3, mwij3) / data.massFac[index] + mwij;
 	if (denom<0.000001)
 		denom = 0.000001;//clamp for stability
 	data.alpha[index] = data.density[index] / denom;
+
 }
 
 
@@ -995,6 +995,51 @@ __global__ void computeNPF_MPH_kernel(SimData_SPH data, int numP) {
 
 
 
+__global__ void applyPStiff_MPH(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	cfloat3 force(0, 0, 0);
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				applyPressureCell(nPos,
+					index,
+					pos,
+					force,
+					data);
+			}
+
+	data.v_star[index] += force * dParam.dt *(-1) / data.massFac[index];
+}
+
+__global__ void updateMassFac_kernel(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	float beta = 0;
+	//compute mass fraction
+	for (int k=0; k<dParam.maxtypenum; k++) {
+		//mass fraction
+		float alphak = data.vFrac[index*dParam.maxtypenum+k];
+		float ck = alphak * dParam.densArr[k] / data.restDensity[index];
+		if(ck<EPSILON)
+			continue;
+		beta += alphak * alphak / ck;
+	}
+	if(beta < EPSILON)
+		printf("error value for beta.\n");
+	data.massFac[index] = 1 / beta;
+
+	//if(index %100==0)
+	//	printf("%f\n", data.massFac[index]);
+}
 
 
 };

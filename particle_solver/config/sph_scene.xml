@@ -61,7 +61,7 @@
 
 	<DensityRatio> 1,   1,   1  </DensityRatio>
 	<ViscRatio>    1,   1,   1   </ViscRatio>
-	<DensityArray> 1000,1000,1000 </DensityArray>
+	<DensityArray> 1,1000,1 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>

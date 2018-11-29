@@ -60,6 +60,8 @@ void SPHSolver::sort() {
 	cudaMemcpy(dData.v_star,    dData.sortedV_star, numP * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.restDensity, dData.sortedRestDensity, numP * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(dData.vFrac,		dData.sortedVFrac,	numP * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(dData.massFac,   dData.sortedMassFac, numP * sizeof(float), cudaMemcpyDeviceToDevice);
+
 }
 
 void SPHSolver::solveSPH() {
@@ -124,18 +126,24 @@ void SPHSolver::solveMultiphaseSPH() {
 	//predict velocity
 	computeNonPForce_MPH(dData, numP);
 
+
+	updateMassFac(dData, numP);
+
 	//correct density
-	correctDensityError(dData, numP, 5, 0.1, false);
+	correctDensity_MPH(dData, numP, 5, 0.1, true);
 
 	//update neighbors
 	sort();
+	
+	//updateMassFac(dData, numP);
 
 	//update rho and alpha
 	computeDFAlpha_MPH(dData, numP);
+	//computeDensityAlpha(dData, numP);
 
 	//correct divergence
 	//update velocity
-	correctDivergenceError(dData, numP, 5, 0.1, true);
+	correctDivergence_MPH(dData, numP, 5, 0.1, false);
 
 	copy2Host();
 
@@ -429,7 +437,7 @@ void SPHSolver::addMultiphaseFluidVolumes() {
 					hMass[pid] = mp;
 					hDensity[pid] = pden;
 					for(int t=0;  t<hParam.maxtypenum; t++)
-						hVFrac[t] = vf[t];
+						hVFrac[pid*hParam.maxtypenum+t] = vf[t];
 
 					addcount += 1;
 				}
@@ -473,7 +481,9 @@ void SPHSolver::setupFluidScene() {
 void SPHSolver::setup() {
 	//setupFluidScene();
 
-	setupDFSPH();
+	//setupDFSPH();
+
+	setupMultiphaseSPH();
 }
 
 
@@ -522,6 +532,8 @@ void SPHSolver::setupDeviceBuffer() {
 	cudaMalloc(&dData.driftV,		ptnum*sizeof(cfloat3));
 	cudaMalloc(&dData.sortedVFrac,	ptnum*sizeof(float));
 	cudaMalloc(&dData.sortedRestDensity,	maxpnum*sizeof(float));
+	cudaMalloc(&dData.massFac, maxpnum*sizeof(float));
+	cudaMalloc(&dData.sortedMassFac, maxpnum*sizeof(float));
 
 	int glen = hParam.gridres.prod();
 
