@@ -111,6 +111,13 @@ void SPHSolver::solveDFSPH() {
 Still we solve multiphase model with divergence-free SPH.
 V_m denotes the volume-averaged velocity of each particle.
 */
+
+void SPHSolver::setupMultiphaseSPH() {
+	setupFluidScene();
+	sort();
+	computeDFAlpha_MPH(dData, numP);
+}
+
 void SPHSolver::solveMultiphaseSPH() {
 
 	//compute non-pressure force
@@ -124,7 +131,7 @@ void SPHSolver::solveMultiphaseSPH() {
 	sort();
 
 	//update rho and alpha
-	computeDensityAlpha(dData, numP);
+	computeDFAlpha_MPH(dData, numP);
 
 	//correct divergence
 	//update velocity

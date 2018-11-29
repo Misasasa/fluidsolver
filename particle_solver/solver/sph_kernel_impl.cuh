@@ -825,12 +825,17 @@ __device__ void DFAlpha_MPH_Cell(cint3 gridPos,
 				float c2 = sr2 - d2;
 				float c = sr - d;
 				float nablaw = dParam.kspikydiff * c * c / d;
+				float densj = 0;
 
 				if (data.type[j]==TYPE_FLUID) {
 					density += c2*c2*c2 * data.mass[j];
 					cfloat3 aij = xij * nablaw * data.mass[j];
+					
+					for(int t=0; t<dParam.maxtypenum; t++)
+						densj += data.vFrac[t] / dParam.densArr[t];
+					
 					mwij += dot(aij, aij);
-					mwij3 += aij;
+					mwij3 += aij * densj;
 				}
 			}
 		}

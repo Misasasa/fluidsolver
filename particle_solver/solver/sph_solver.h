@@ -83,6 +83,7 @@ public:
 	void setupDFSPH();
 
 	// Multiphase Fluid
+	void setupMultiphaseSPH();
 	void addMultiphaseFluidVolumes();
 
 	void loadPO(ParticleObject* po);
