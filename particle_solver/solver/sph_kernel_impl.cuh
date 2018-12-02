@@ -784,7 +784,12 @@ __global__ void updateVelocities(SimData_SPH data, int numP) {
 	if (index >= numP) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
+	cfloat3 driftAcc = data.v_star[index] - data.vel[index];
+	driftAcc /= dParam.dt;
+	driftAcc = dParam.gravity - driftAcc;
 	data.vel[index] = data.v_star[index];
+	data.v_star[index] = driftAcc;
+
 }
 
 
@@ -1039,6 +1044,25 @@ __global__ void updateMassFac_kernel(SimData_SPH data, int numP) {
 
 	//if(index %100==0)
 	//	printf("%f\n", data.massFac[index]);
+}
+
+__global__ void computeDriftVelocity_kernel(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	cfloat3* driftv = &data.driftV[index*dParam.maxtypenum];
+	for (int t=0; t<dParam.maxtypenum; t++) {
+
+	}
+}
+
+__global__ void computePhaseDiffusion_kernel(SimData_SPH data, int numP) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= numP) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+
 }
 
 

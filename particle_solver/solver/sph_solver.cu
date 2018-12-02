@@ -393,6 +393,26 @@ void correctDivergence_MPH(SimData_SPH data, int numP,
 
 }
 
+void computeDriftVelocity(SimData_SPH data, int numP) {
+	
+	uint numThreads, numBlocks;
+	computeGridSize(numP, 256, numBlocks, numThreads);
 
+	computeDriftVelocity_kernel<<<numBlocks, numThreads>>>(data, numP);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: compute drift velocity");
+
+}
+
+void computePhaseDiffusion(SimData_SPH data, int numP) {
+	
+	uint numThreads, numBlocks;
+	computeGridSize(numP, 256, numBlocks, numThreads);
+
+	computePhaseDiffusion_kernel<<<numBlocks, numThreads>>>(data, numP);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: compute drift velocity");
+
+}
 
 };

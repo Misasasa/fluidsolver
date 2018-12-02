@@ -61,14 +61,21 @@
 
 	<DensityRatio> 1,   1,   1  </DensityRatio>
 	<ViscRatio>    1,   1,   1   </ViscRatio>
-	<DensityArray> 1,1000,1 </DensityArray>
+	<DensityArray> 500,1000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.05,  0.015,  -0.05	</VolMin>
-		<VolMax>	0.05,  0.35,  0.05	</VolMax>
-		<VolFrac>   0.25,  0.5,  0.25 </VolFrac>
+		<VolMin>	-0.07,  0.015,  -0.05	</VolMin>
+		<VolMax>	-0.01,  0.35,  0.05	</VolMax>
+		<VolFrac>   0,  1,  0 </VolFrac>
 	</Vol>
+
+	<Vol>
+		<VolMin>	0.01,  0.015,  -0.05	</VolMin>
+		<VolMax>	0.07,  0.35,  0.05	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+	</Vol>
+
     <!--Vol>
     	<VolMin>	-7,   32, -7	</VolMin>
 		<VolMax>   7,  46,  7	</VolMax>

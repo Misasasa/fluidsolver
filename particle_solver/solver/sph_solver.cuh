@@ -232,5 +232,8 @@ void correctDivergence_MPH(SimData_SPH data,
 );
 void updateMassFac(SimData_SPH data, int numP);
 
+void computeDriftVelocity(SimData_SPH data, int numP);
+
+void computePhaseDiffusion(SimData_SPH data, int numP);
 
 };

@@ -122,15 +122,15 @@ void SPHSolver::setupMultiphaseSPH() {
 
 void SPHSolver::solveMultiphaseSPH() {
 
-	//compute non-pressure force
 	//predict velocity
 	computeNonPForce_MPH(dData, numP);
 
+	computePhaseDiffusion(dData, numP);
 
 	updateMassFac(dData, numP);
 
 	//correct density
-	correctDensity_MPH(dData, numP, 5, 0.1, true);
+	correctDensity_MPH(dData, numP, 5, 0.1, false);
 
 	//update neighbors
 	sort();
@@ -144,6 +144,9 @@ void SPHSolver::solveMultiphaseSPH() {
 	//correct divergence
 	//update velocity
 	correctDivergence_MPH(dData, numP, 5, 0.1, false);
+
+	//advect phase
+	computeDriftVelocity(dData, numP);
 
 	copy2Host();
 
@@ -454,7 +457,7 @@ void SPHSolver::loadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = addDefaultParticle();
 		hPos[pid] = po->pos[i];
-		hColor[pid] = cfloat4(1,1,1,0.2);
+		hColor[pid] = cfloat4(1,1,1,0);
 		hType[pid] = TYPE_BOUNDARY;
 		hNormal[pid] = po->normal[i];
 		hMass[pid] = mp;
