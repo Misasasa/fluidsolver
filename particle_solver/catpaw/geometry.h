@@ -96,11 +96,14 @@ struct cfloat3 {
 		x/=b.x; y/=b.y; z/=b.z;
 	}
 
-	HDFUNC float minx() {
+	HDFUNC inline float minx() {
 		return cmin(x, cmin(y, z));
 	}
-	HDFUNC float mode() {
+	HDFUNC inline float mode() {
 		return sqrt(x*x+y*y+z*z);
+	}
+	HDFUNC inline float square() {
+		return x*x + y*y + z*z;
 	}
 };
 

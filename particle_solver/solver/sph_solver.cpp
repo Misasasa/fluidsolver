@@ -82,8 +82,6 @@ void SPHSolver::Sort() {
 
 	sortParticle(device_data, num_particles);
 
-	//cudaMemset(device_data.gridCellCollisionFlag, 0, sizeof(char)*num_grid_cells);
-
 	reorderDataAndFindCellStart(device_data, num_particles, num_grid_cells);
 	
 	cudaMemcpy(device_data.pos,		device_data.sortedPos,	num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
@@ -98,6 +96,7 @@ void SPHSolver::Sort() {
 	cudaMemcpy(device_data.restDensity, device_data.sortedRestDensity, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.vFrac,		device_data.sortedVFrac,	num_particles * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.effective_density, device_data.sorted_effective_density, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 
 }
 
@@ -160,21 +159,20 @@ void SPHSolver::SetupMultiphaseSPH() {
 void SPHSolver::SolveMultiphaseSPH() {
 	
 	PhaseDiffusion(device_data, num_particles);
-
-	NonPressureForce_Multiphase(device_data, num_particles);
-
 	
 	EffectiveMass(device_data, num_particles);
 
+	NonPressureForce_Multiphase(device_data, num_particles);
+	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 5, 0.1, false);
+	EnforceDensity_Multiphase(device_data, num_particles, 10, 0.1, false);
 
 	Sort();
 	
 	DFAlpha_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 100, 0.1, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 10, 0.1, true);
 
 	DriftVelocity(device_data, num_particles);
 
@@ -570,6 +568,8 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
 	cudaMalloc(&device_data.effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.sorted_effective_density, maxpnum*sizeof(float));
 
 	int glen = hParam.gridres.prod();
 

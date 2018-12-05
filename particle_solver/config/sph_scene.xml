@@ -1,11 +1,11 @@
 <Fluid>
 	<AccelLimit>	1500.0		</AccelLimit>
 	<VelLimit>		100		</VelLimit>
-	<Gravity>	0,0,0		</Gravity>
+	<Gravity>	0, -9.8, 0		</Gravity>
 	<VolMin> -0.2, 0, -0.2 </VolMin>
 	<VolMax>  0.2,  0.8,   0.2 </VolMax>
 	
-	<SceneId> 1 </SceneId>
+	<SceneId> 2 </SceneId>
 
 </Fluid>
 
@@ -46,7 +46,7 @@
 </MultiScene>
 
 <MultiScene id="1">
-	<Name>		Single Dam Break 	</Name>
+	<Name>		Double Dam Break 	</Name>
 
 	<MaxPNum> 100000 </MaxPNum>
 	<TypeNum> 3 </TypeNum>
@@ -89,7 +89,30 @@
 	<Pairwise_c> 50000 </Pairwise_c>
 </MultiScene>
 
+<MultiScene id="2">
+	<Name>		Single Dam Break 	</Name>
 
+	<MaxPNum> 100000 </MaxPNum>
+	<TypeNum> 3 </TypeNum>
+
+	<DT> 0.0004 </DT>
+	<PSpacing> 0.005 </PSpacing>
+	<SmoothRatio> 1.6 </SmoothRatio>
+	
+	<Viscosity>	 0.0005	</Viscosity>
+	<RestDensity> 1000 </RestDensity>
+	<PressureK> 1119 </PressureK>
+
+	<DensityArray> 500,1000,1000 </DensityArray>
+	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
+	
+	<Vol>
+		<VolMin>	-0.07,  0.015,  -0.05	</VolMin>
+		<VolMax>	0.07,  0.35,  0.05	</VolMax>
+		<VolFrac>   0.5,  0.5,  0 </VolFrac>
+	</Vol>
+
+</MultiScene>
 
 <BoundInfo id="1">
 	<Viscosity>	0.0001		</Viscosity>

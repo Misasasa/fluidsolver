@@ -257,7 +257,7 @@ void correctDivergenceError(SimData_SPH data,
 	}
 	if (bDebug)
 		printf("%d error: %f\n", iter, error);
-	updateVelocities<<<num_blocks, num_threads>>>(data,num_particles);
+	UpdateVelocities<<<num_blocks, num_threads>>>(data,num_particles);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");
@@ -396,7 +396,7 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 	}
 	if (bDebug)
 		printf("%d error: %f\n", iter, error);
-	updateVelocities<<<num_blocks, num_threads>>>(data, num_particles);
+	UpdateVelocities<<<num_blocks, num_threads>>>(data, num_particles);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");
@@ -409,7 +409,7 @@ void DriftVelocity(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeDriftVelocity_kernel<<<num_blocks, num_threads>>>(data, num_particles);
+	DriftVelocityKernel<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: drift velocity.");
 

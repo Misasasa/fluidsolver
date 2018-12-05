@@ -15,6 +15,22 @@ SimParam_SPH hParam;
 __device__ SimParam_SPH dParam;
 
 
+/*********************************
+
+SPH Kernel, Gradients, Laplacian
+
+*********************************/
+
+
+__inline__ __device__ cfloat3 KernelGradient_Spiky(float smooth_radius,
+	cfloat3 xij) {
+	float d = xij.mode();
+	float c = smooth_radius - d;
+	float factor = dParam.kspikydiff * c * c / d;
+	return xij * factor;
+}
+
+
 
 __device__ uint calcGridHash(cint3 gridPos)
 {
@@ -41,10 +57,10 @@ __global__ void calcHashD(
 	int* ParticleHash,
 	int* ParticleIndex,
 	cfloat3* Pos,
-	int pnum) {
+	int num_particles) {
 
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i >= pnum)	return;
+	if (i >= num_particles)	return;
 
 	cfloat3 x = Pos[i];
 	uint hash;
@@ -65,13 +81,13 @@ __global__ void calcHashD(
 
 __global__ void reorderDataAndFindCellStartD(
 	SimData_SPH data,
-	int numParticles
+	int num_particles
 ) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	extern __shared__ uint sharedHash[];
 	uint hash;
 
-	if (index < numParticles)
+	if (index < num_particles)
 	{
 		hash = data.particleHash[index];
 
@@ -90,7 +106,7 @@ __global__ void reorderDataAndFindCellStartD(
 	__syncthreads();
 
 
-	if (index < numParticles)
+	if (index < num_particles)
 	{
 		// If this particle has a different cell index to the previous
 		// particle then it must be the first particle in the cell,
@@ -106,7 +122,7 @@ __global__ void reorderDataAndFindCellStartD(
 			if (index > 0)
 				data.gridCellEnd[sharedHash[threadIdx.x]] = index;
 		}
-		if (index == numParticles - 1)
+		if (index == num_particles - 1)
 		{
 			if (hash!=GRID_UNDEF)
 				data.gridCellEnd[hash] = index + 1;
@@ -132,6 +148,8 @@ __global__ void reorderDataAndFindCellStartD(
 		//Multiphase
 		data.sortedRestDensity[index] = data.restDensity[sortedIndex];
 		data.sorted_effective_mass[index] = data.effective_mass[sortedIndex];
+		data.sorted_effective_density[index] = data.effective_density[sortedIndex];
+
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
 	}
@@ -171,9 +189,9 @@ __device__ void DensityCell(cint3 gridPos, int index, cfloat3 pos, float& densit
 	}
 }
 
-__global__ void computeP(SimData_SPH data, int numP) {
+__global__ void computeP(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if(index >= numP) return;
+	if(index >= num_particles) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -285,9 +303,9 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 	}
 }
 
-__global__ void computeF(SimData_SPH data, int numP) {
+__global__ void computeF(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
@@ -333,9 +351,9 @@ __device__ void clampBoundary(int index, SimData_SPH data) {
 	
 }
 
-__global__ void advectAndCollision(SimData_SPH data, int numP) {
+__global__ void advectAndCollision(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]==TYPE_BOUNDARY) return;
 
 	data.vel[index] += data.force[index] * dParam.dt;
@@ -404,9 +422,9 @@ __device__ void DensityAlphaCell(cint3 gridPos,
 	}
 }
 
-__global__ void computeDensityAlpha_kernel(SimData_SPH data, int numP) {
+__global__ void computeDensityAlpha_kernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -515,11 +533,11 @@ __device__ void computeNPFCell(cint3 gridPos,
 	}
 }
 
-__global__ void computeNPF_kernel(SimData_SPH data, int numP)
+__global__ void computeNPF_kernel(SimData_SPH data, int num_particles)
 {
 	//viscosity, collision, gravity
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if(data.type[index]!=TYPE_FLUID) {
 		data.v_star[index] = cfloat3(0,0,0);
 		return;
@@ -593,10 +611,10 @@ __device__ void DensityChangeCell(
 
 
 
-__global__ void solveDivergenceStiff(SimData_SPH data, int numP) {
+__global__ void solveDivergenceStiff(SimData_SPH data, int num_particles) {
 	
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID){
 		data.error[index] = 0;
 		data.pstiff[index] = 0;
@@ -668,10 +686,10 @@ __device__ void PredictDensityCell(
 }
 
 
-__global__ void solveDensityStiff(SimData_SPH data, int numP) {
+__global__ void solveDensityStiff(SimData_SPH data, int num_particles) {
 
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) {
 		data.error[index] = 0;
 		data.pstiff[index] = 0;
@@ -729,14 +747,15 @@ __device__ void applyPressureCell(
 				if (d2 >= sr2)
 					continue;
 
-				float d = sqrt(d2);
-				float c2 = sr2 - d2;
-				float c = sr - d;
-				float nablaw = dParam.kspikydiff * c * c / d;
+				//float d = sqrt(d2);
+				//float c2 = sr2 - d2;
+				//float c = sr - d;
+				//float nablaw = dParam.kspikydiff * c * c / d;
 
 				if (data.type[j]==TYPE_FLUID) {
 
-					cfloat3 nwij = xij * nablaw * data.mass[j];
+					//cfloat3 nwij = xij * nablaw * data.mass[j];
+					cfloat3 nwij = KernelGradient_Spiky(sr, xij) * data.mass[j];
 					force += nwij * (data.pstiff[index]/data.density[index]
 						+ data.pstiff[j]/data.density[j]);
 					//force += nwij * data.pstiff[index]/data.density[index];
@@ -747,9 +766,9 @@ __device__ void applyPressureCell(
 	}
 }
 
-__global__ void applyPStiff(SimData_SPH data, int numP) {
+__global__ void applyPStiff(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
@@ -770,25 +789,27 @@ __global__ void applyPStiff(SimData_SPH data, int numP) {
 	data.v_star[index] += force * dParam.dt *(-1);
 }
 
-__global__ void updatePosition(SimData_SPH data, int numP) {
+__global__ void updatePosition(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
 	data.pos[index] += data.v_star[index] * dParam.dt;
 }
 
 
-__global__ void updateVelocities(SimData_SPH data, int numP) {
+__global__ void UpdateVelocities(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
-	cfloat3 driftAcc = data.v_star[index] - data.vel[index];
-	driftAcc /= dParam.dt;
-	driftAcc = dParam.gravity - driftAcc;
+	cfloat3 drift_acceleration = data.v_star[index] - data.vel[index];
+	drift_acceleration /= dParam.dt;
+	drift_acceleration = dParam.gravity - drift_acceleration;
 	data.vel[index] = data.v_star[index];
-	data.v_star[index] = driftAcc;
+	data.v_star[index] = drift_acceleration;
+	//if(index %100==0)
+	//	printf("%f %f %f\n", drift_acceleration.x, drift_acceleration.y, drift_acceleration.z);
 
 }
 
@@ -846,9 +867,9 @@ __device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 	}
 }
 
-__global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int numP) {
+__global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if(data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
@@ -966,12 +987,12 @@ __device__ void NonPressureForce_MPH_Cell(cint3 gridPos,
 	}
 }
 
-__global__ void computeNPF_MPH_kernel(SimData_SPH data, int numP) {
+__global__ void computeNPF_MPH_kernel(SimData_SPH data, int num_particles) {
 	//viscosity, collision, gravity,
 	//phase momentum diffusion
 
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) {
 		data.v_star[index] = cfloat3(0, 0, 0);
 		return;
@@ -1000,9 +1021,9 @@ __global__ void computeNPF_MPH_kernel(SimData_SPH data, int numP) {
 
 
 
-__global__ void ApplyPressureKernel_Multiphase(SimData_SPH data, int numP) {
+__global__ void ApplyPressureKernel_Multiphase(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
 	cfloat3 pos = data.pos[index];
@@ -1031,44 +1052,123 @@ Since the force equation eliminate m_i automatically,
 we here store m_e = \beta.
 */
 
-__global__ void EffectiveMassKernel(SimData_SPH data, int numP) {
+__global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
 	float beta = 0;
-	//compute mass fraction
+	float effective_density = 0;
+	float rest_density = 0;
+
+	
 	for (int k=0; k<dParam.maxtypenum; k++) {
-		//mass fraction
-		float alphak = data.vFrac[index*dParam.maxtypenum+k];
-		float ck = alphak * dParam.densArr[k] / data.restDensity[index];
-		if(ck<EPSILON)
+		float vol_frac = data.vFrac[index*dParam.maxtypenum+k];
+		float mass_frac = vol_frac * dParam.densArr[k] / data.restDensity[index]; //mass fraction
+		if(mass_frac < EPSILON)
 			continue;
-		beta += alphak * alphak / ck;
+		beta += vol_frac * vol_frac / mass_frac;
+		effective_density += vol_frac / dParam.densArr[k];
+		rest_density += vol_frac * dParam.densArr[k];
 	}
 	if(beta < EPSILON)
 		printf("error value for beta.\n");
 	data.effective_mass[index] = 1 / beta;
+	data.effective_density[index] = 1 / effective_density;
+	data.restDensity[index] = rest_density;
 
 	//if(index %100==0)
-	//	printf("%f\n", data.effective_mass[index]);
+	//	printf("%f\n", data.effective_density[index]);
 }
 
-__global__ void computeDriftVelocity_kernel(SimData_SPH data, int numP) {
-	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
-	if (data.type[index]!=TYPE_FLUID) return;
 
-	cfloat3* driftv = &data.driftV[index*dParam.maxtypenum];
-	for (int t=0; t<dParam.maxtypenum; t++) {
-		 
+__device__ void VolumeFractionGradientCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cfloat3* vol_frac_gradient)
+{
+	uint grid_hash = calcGridHash(cell_index);
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff) return;
+	uint end_index = data.gridCellEnd[grid_hash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (j == i || data.type[j]!=TYPE_FLUID) continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.square();
+		if (d2 >= sr2) continue;
+
+		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		float vj = data.mass[j] / data.density[j];
+		cfloat3 contribution;
+		
+		for (int k=0; k<dParam.maxtypenum; k++) {
+			contribution = nabla_w * vj * 
+				(data.vFrac[j*dParam.maxtypenum+k] - data.vFrac[i*dParam.maxtypenum+k]);
+			vol_frac_gradient[k] += contribution;
+		}
 	}
 }
 
-__global__ void PhaseDiffusionKernel(SimData_SPH data, int numP) {
+
+
+__global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= numP) return;
+	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	cfloat3* drift_v = &data.driftV[index*dParam.maxtypenum];
+	cfloat3 vol_frac_gradient[10];
+
+	//for(int k=0; k<dParam.maxtypenum; k++) vol_frac_gradient[k].Set(0,0,0); //initialization
+	//VolumeFractionGradientCell(cell_index, index, xi, data, vol_frac_gradient);
+
+	cfloat3 drift_acceleration = data.v_star[index];
+	float constant_factor = 4*0.005/3/0.44;
+	float rest_density = data.restDensity[index];
+	float effective_density = data.effective_density[index];
+	float accel_mode = drift_acceleration.mode();
+	float* vol_frac = data.vFrac + index*dParam.maxtypenum;
+
+	for (int k=0; k<dParam.maxtypenum; k++) {
+		float density_k = dParam.densArr[k];
+		float vol_frac_k = vol_frac[k];
+		
+		if (vol_frac_k < EPSILON || accel_mode < EPSILON || vol_frac_k > 1-EPSILON) {
+			drift_v[k].Set(0,0,0);
+			continue;
+		}
+
+		float density_c = (rest_density - vol_frac_k * density_k) / (1-vol_frac_k);
+		float density_factor = (density_k - effective_density) / density_c;
+		cfloat3 drift_vk2 = drift_acceleration * density_factor * constant_factor;
+
+		float drift_v_mode2 = drift_vk2.mode();
+		float drift_v_mode = sqrt(drift_v_mode2);
+
+		drift_v[k] = drift_vk2 / drift_v_mode * (1 - vol_frac_k);
+		/*if (index % 100==0 && k==0) {
+			printf("%f %f %f, %f %f %f\n", accel_mode, density_factor, drift_v_mode,
+				drift_v[k].x, drift_v[k].y, drift_v[k].z);
+		}*/
+	}
+}
+
+__global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+
 }
 
 

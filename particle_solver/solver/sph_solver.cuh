@@ -109,7 +109,9 @@ struct SimData_SPH {
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* effective_mass;
+	float* effective_density;
 	float* sorted_effective_mass;
+	float* sorted_effective_density;
 
 
 	//edge data
