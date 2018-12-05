@@ -45,7 +45,7 @@ void testGrid() {
 
 void testSPH() {
 	sph::SPHSolver ss;
-	ss.setup();
+	ss.Setup();
 
 	solverGUI.bindSolver(&ss);
 	solverGUI.setParticlesz(0.005);

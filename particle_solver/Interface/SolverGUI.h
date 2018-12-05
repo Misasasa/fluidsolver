@@ -81,8 +81,8 @@ public:
 	//--- bind buffer ---
 	void bindSolver(Solver* solver_) {
 		solver = solver_;
-		hPos = & solver->hPos;
-		hColor = & solver->hColor;
+		hPos = & solver->host_x;
+		hColor = & solver->host_color;
 		GetBoundingBox();
 	}
 

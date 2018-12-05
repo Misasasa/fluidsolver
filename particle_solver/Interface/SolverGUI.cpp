@@ -706,7 +706,7 @@ void SolverGUI::render() {
 		catpaw::cTime clock;
 		clock.tick();
 
-		solver->step();
+		solver->Step();
 		
 		tsum += clock.tack()*1000;
 		tenc++;
@@ -735,7 +735,7 @@ void SolverGUI::render() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	switch (rendermode) {
 	case PARTICLE_RENDERER:
-		particleRO->Draw(hPos->data(), hColor->data(), camera, solver->numP);
+		particleRO->Draw(hPos->data(), hColor->data(), camera, solver->num_particles);
 		break;
 	/*
 	case TRIANGLE_RENDERER:

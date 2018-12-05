@@ -4,12 +4,12 @@
 
 class Solver {
 public:
-	virtual void step()=0;
+	virtual void Step()=0;
 	virtual void HandleKeyEvent(char key)=0;
 
-	vecf3 hPos;
-	vecf4 hColor;
-	int numP;
+	vecf3 host_x;
+	vecf4 host_color;
+	int num_particles;
 
 	cfloat3 domainMin;
 	cfloat3 domainMax;

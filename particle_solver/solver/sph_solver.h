@@ -20,36 +20,35 @@ class SPHSolver : public Solver {
 public:
 
 	//nooverride
-	//vecf3	hPos;
-	//vecf4	hColor;
-	vecf3   hVel;
-	vecf3	hNormal;
-	veci	hType;
-	veci	hGroup;
-	vecf	hMass;
-	vecf	hInvMass;
-	veci	hUniqueId;
-	veci	hIndexTable;
-	//veci	hJetFlag;
-	vecf	hDensity; //rest density
-	vecf	hVFrac; //volume fraction
+	//vecf3	host_x;
+	//vecf4	host_color;
+	vecf3   host_v;
+	vecf3	host_normal;
+	veci	host_type;
+	veci	host_group;
+	vecf	host_mass;
+	vecf	host_inv_mass;
+	veci	host_unique_id;
+	veci	host_id_table;
+	vecf	host_rest_density; //rest density
+	vecf	host_vol_frac; //volume fraction
 
 
-	SimData_SPH dData;
+	SimData_SPH device_data;
 	
-	vector<fluidvol> fvs;
-	vector<FluidSrc> fss;
+	vector<fluidvol> fluid_volumes;
+	vector<FluidSrc> fluid_sources;
 
-	//int numP;
-	int numFluidP;
-	int numGC;
-	int frameNo;
-	int caseid;
-	int runmode;
+	//int num_particles;
+	int num_fluid_particles;
+	int num_grid_cells;
+	int frame_count;
+	int case_id;
+	int run_mode;
 
 	float time;
 	
-	bool bEmitParticle;
+	bool emit_particle_on;
 
 
 
@@ -59,43 +58,43 @@ public:
 
 
 
-	void step();
+	void Step();
 	void HandleKeyEvent(char key);
 
-	void setupHostBuffer();
-	void setupDeviceBuffer();
-	void copy2Device();
-	void copy2Device(int begin, int end);
-	void copy2Host();
-	void copy2host_full();
+	void SetupHostBuffer();
+	void SetupDeviceBuffer();
+	void Copy2Device();
+	void Copy2Device(int begin, int end);
+	void CopyFromDevice();
+	void CopyFromDeviceFull();
 
-	void sort();
-	void solveSPH();
-	void solveDFSPH();
-	void solveMultiphaseSPH(); //with DFSPH
+	void Sort();
+	void SolveSPH();
+	void SolveDFSPH();
+	void SolveMultiphaseSPH(); //with DFSPH
 
-	void setup();
-	int addDefaultParticle();
-	void addfluidvolumes();
-	void fluidSrcEmit();
+	void Setup();
+	int  AddDefaultParticle();
+	void Addfluidvolumes();
+	void EnableFluidSource();
 
 	// DFSPH
-	void setupDFSPH();
+	void SetupDFSPH();
 
 	// Multiphase Fluid
-	void setupMultiphaseSPH();
-	void addMultiphaseFluidVolumes();
+	void SetupMultiphaseSPH();
+	void AddMultiphaseFluidVolumes();
 
-	void loadPO(ParticleObject* po);
+	void LoadPO(ParticleObject* po);
 
 	//Setup Scenes
-	void parseParam(char* xmlpath);
-	void loadParam(char* xmlpath);
+	void ParseParam(char* xmlpath);
+	void LoadParam(char* xmlpath);
 	
-	void dumpSimulationDataText();
-	void loadSimulationDataText(char* filepath, cmat4& materialMat);
+	void DumpSimulationDataText();
+	void LoadSimulationDataText(char* filepath, cmat4& materialMat);
 
-	void setupFluidScene();
+	void SetupFluidScene();
 };
 
 };

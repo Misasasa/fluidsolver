@@ -99,6 +99,8 @@ struct SimData_SPH {
 	float* pstiff;
 	cfloat3* sortedV_star;
 	float* error;
+	float* pstiff_sum;
+	float* sortedPstiff_sum;
 
 	// Multiphase Fluid
 	float* vFrac;
@@ -106,8 +108,8 @@ struct SimData_SPH {
 	cfloat3* driftV;
 	float* sortedVFrac;
 	float* sortedRestDensity;
-	float* massFac; // really?
-	float* sortedMassFac;
+	float* effective_mass;
+	float* sorted_effective_mass;
 
 
 	//edge data
@@ -149,8 +151,8 @@ struct SimData_SPH {
 
 
 
-void copyDeviceBuffer();
-void fetchDeviceBuffer();
+void CopyParam2Device();
+void CopyParamFromDevice();
 
 
 void calcHash(
@@ -216,24 +218,24 @@ void correctDivergenceError(SimData_SPH data,
 			Multiphase SPH
 
 ****************************************/
-void computeDFAlpha_MPH(SimData_SPH data, int numP);
-void computeNonPForce_MPH(SimData_SPH data, int numP);
-void correctDensity_MPH(SimData_SPH data,
+void DFAlpha_Multiphase(SimData_SPH data, int numP);
+void NonPressureForce_Multiphase(SimData_SPH data, int numP);
+void EnforceDensity_Multiphase(SimData_SPH data,
 	int numP,
 	int maxiter,
 	float ethres,
 	bool bDebug
 );
-void correctDivergence_MPH(SimData_SPH data,
+void EnforceDivergenceFree_Multiphase(SimData_SPH data,
 	int numP,
 	int maxiter,
 	float ethres,
 	bool bDebug
 );
-void updateMassFac(SimData_SPH data, int numP);
+void EffectiveMass(SimData_SPH data, int numP);
 
-void computeDriftVelocity(SimData_SPH data, int numP);
+void DriftVelocity(SimData_SPH data, int numP);
 
-void computePhaseDiffusion(SimData_SPH data, int numP);
+void PhaseDiffusion(SimData_SPH data, int numP);
 
 };

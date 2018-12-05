@@ -5,8 +5,8 @@
 void GridSolver::setup() {
 	loadConfig();
 	allocate();
-	hPos.clear();
-	hColor.clear();
+	host_x.clear();
+	host_color.clear();
 
 	addParticles();
 }
@@ -605,7 +605,7 @@ void GridSolver::testcase() {
 				
 }
 
-void GridSolver::step() {
+void GridSolver::Step() {
 	advect();
 	advectParticles();
 	bodyForce();
@@ -631,21 +631,21 @@ void GridSolver::addParticles() {
 				tmp.x = xmin.x + i;
 				tmp.y = xmin.y + j;
 				tmp.z = xmin.z + k;
-				hPos.push_back(tmp);
-				hColor.push_back(cfloat4(1,1,1,1));
+				host_x.push_back(tmp);
+				host_color.push_back(cfloat4(1,1,1,1));
 			}
 }
 
 void GridSolver::advectParticles() {
-	for (int i=0; i<hPos.size(); i++) {
+	for (int i=0; i<host_x.size(); i++) {
 		cfloat3 v;
-		v.x = sampleU(hPos[i]);
-		v.y = sampleV(hPos[i]);
-		v.z = sampleW(hPos[i]);
-		hPos[i] += v * dt;
+		v.x = sampleU(host_x[i]);
+		v.y = sampleV(host_x[i]);
+		v.z = sampleW(host_x[i]);
+		host_x[i] += v * dt;
 		float l = 1;//sqrt(dot(v,v));
-		hColor[i].x = abs(v.x)/0.01;
-		hColor[i].y = 0;//abs(v.y)/l;
-		hColor[i].z = abs(v.z)/l;
+		host_color[i].x = abs(v.x)/0.01;
+		host_color[i].y = 0;//abs(v.y)/l;
+		host_color[i].z = abs(v.z)/l;
 	}
 }

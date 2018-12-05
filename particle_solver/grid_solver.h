@@ -79,7 +79,7 @@ public:
 
 	// ==============   METHOD   =================
 
-	void step();
+	void Step();
 	void HandleKeyEvent(char key);
 
 	void setup();

@@ -174,7 +174,7 @@ void PBFSolver::solvePBF() {
 }
 
 
-void PBFSolver::step() {
+void PBFSolver::Step() {
 	if (numParticles > 0) {
 
 		predictPosition( dData, hParam.dt, numParticles);

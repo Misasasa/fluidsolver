@@ -131,7 +131,7 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sortedV_star[index] = data.v_star[sortedIndex];
 		//Multiphase
 		data.sortedRestDensity[index] = data.restDensity[sortedIndex];
-		data.sortedMassFac[index] = data.massFac[sortedIndex];
+		data.sorted_effective_mass[index] = data.effective_mass[sortedIndex];
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
 	}
@@ -800,7 +800,7 @@ __global__ void updateVelocities(SimData_SPH data, int numP) {
 
 *****************************************/
 
-__device__ void DFAlpha_MPH_Cell(cint3 gridPos,
+__device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 	int index,
 	cfloat3 pos,
 	float& density,
@@ -837,7 +837,7 @@ __device__ void DFAlpha_MPH_Cell(cint3 gridPos,
 					density += c2*c2*c2 * data.mass[j];
 					cfloat3 aij = xij * nablaw * data.mass[j];
 					
-					mwij += dot(aij, aij) / data.massFac[j]; //second term
+					mwij += dot(aij, aij) * data.effective_mass[j]; //second term
 					mwij3 += aij; //first term
 				}
 			}
@@ -846,7 +846,7 @@ __device__ void DFAlpha_MPH_Cell(cint3 gridPos,
 	}
 }
 
-__global__ void computeDFAlpha_MPH_kernel(SimData_SPH data, int numP) {
+__global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
 	if(data.type[index]!=TYPE_FLUID) return;
@@ -861,7 +861,7 @@ __global__ void computeDFAlpha_MPH_kernel(SimData_SPH data, int numP) {
 		for (int y=-1; y<=1; y++)
 			for (int x=-1; x<=1; x++) {
 				cint3 nPos = gridPos + cint3(x, y, z);
-				DFAlpha_MPH_Cell(nPos,
+				DFAlphaMultiphaseCell(nPos,
 					index,
 					pos,
 					density,
@@ -876,7 +876,7 @@ __global__ void computeDFAlpha_MPH_kernel(SimData_SPH data, int numP) {
 	density *= dParam.kpoly6;
 	data.density[index] = density;
 
-	float denom = dot(mwij3, mwij3) / data.massFac[index] + mwij;
+	float denom = dot(mwij3, mwij3) * data.effective_mass[index] + mwij;
 	if (denom<0.000001)
 		denom = 0.000001;//clamp for stability
 	data.alpha[index] = data.density[index] / denom;
@@ -1000,7 +1000,7 @@ __global__ void computeNPF_MPH_kernel(SimData_SPH data, int numP) {
 
 
 
-__global__ void applyPStiff_MPH(SimData_SPH data, int numP) {
+__global__ void ApplyPressureKernel_Multiphase(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
 	if (data.type[index]!=TYPE_FLUID) return;
@@ -1020,10 +1020,18 @@ __global__ void applyPStiff_MPH(SimData_SPH data, int numP) {
 					data);
 			}
 
-	data.v_star[index] += force * dParam.dt *(-1) / data.massFac[index];
+	data.v_star[index] += force * dParam.dt *(-1) * data.effective_mass[index];
 }
 
-__global__ void updateMassFac_kernel(SimData_SPH data, int numP) {
+/* compute effective mass used in divergence-free solver,
+the formula goes like:
+\beta = \sum_k \alpha_k * \alpha_k / c_k,
+m_e = m / \beta.
+Since the force equation eliminate m_i automatically,
+we here store m_e = \beta.
+*/
+
+__global__ void EffectiveMassKernel(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
 	if (data.type[index]!=TYPE_FLUID) return;
@@ -1040,10 +1048,10 @@ __global__ void updateMassFac_kernel(SimData_SPH data, int numP) {
 	}
 	if(beta < EPSILON)
 		printf("error value for beta.\n");
-	data.massFac[index] = 1 / beta;
+	data.effective_mass[index] = 1 / beta;
 
 	//if(index %100==0)
-	//	printf("%f\n", data.massFac[index]);
+	//	printf("%f\n", data.effective_mass[index]);
 }
 
 __global__ void computeDriftVelocity_kernel(SimData_SPH data, int numP) {
@@ -1053,16 +1061,14 @@ __global__ void computeDriftVelocity_kernel(SimData_SPH data, int numP) {
 
 	cfloat3* driftv = &data.driftV[index*dParam.maxtypenum];
 	for (int t=0; t<dParam.maxtypenum; t++) {
-
+		 
 	}
 }
 
-__global__ void computePhaseDiffusion_kernel(SimData_SPH data, int numP) {
+__global__ void PhaseDiffusionKernel(SimData_SPH data, int numP) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= numP) return;
 	if (data.type[index]!=TYPE_FLUID) return;
-
-
 }
 
 

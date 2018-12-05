@@ -16,11 +16,11 @@
 
 namespace sph{
 
-void copyDeviceBuffer() {
+void CopyParam2Device() {
 	cudaMemcpyToSymbol(dParam, &hParam, sizeof(SimParam_SPH));
 }
 
-void fetchDeviceBuffer() {
+void CopyParamFromDevice() {
 	cudaMemcpyFromSymbol(&hParam, dParam, sizeof(SimParam_SPH));
 }
 
@@ -28,16 +28,16 @@ void fetchDeviceBuffer() {
 
 
 
-void calcHash(SimData_SPH data,	int numParticles) {
+void calcHash(SimData_SPH data,	int num_particles) {
 
 	getLastCudaError("Kernel execution failed:before calc hash");
-	uint numBlocks, numThreads;
-	computeGridSize(numParticles, 256, numBlocks, numThreads);
+	uint num_blocks, num_threads;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	calcHashD << <numBlocks, numThreads >> > (data.particleHash,
+	calcHashD << <num_blocks, num_threads >> > (data.particleHash,
 		data.particleIndex,
 		data.pos,
-		numParticles);
+		num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: calc hash");
 }
@@ -57,20 +57,20 @@ void sortParticle(SimData_SPH data,	int pnum) {
 
 void reorderDataAndFindCellStart(
 	SimData_SPH data, 
-	int numParticles,
+	int num_particles,
 	int numGridCells
 ) {
-	uint numThreads, numBlocks;
-	computeGridSize(numParticles, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	cudaMemset(data.gridCellStart, 0xffffffff, numGridCells * sizeof(uint));
 
 	//shared memory size
-	uint smemSize = sizeof(uint)*(numThreads + 1);
+	uint smemSize = sizeof(uint)*(num_threads + 1);
 	
-	reorderDataAndFindCellStartD << < numBlocks, numThreads, smemSize >> >(
+	reorderDataAndFindCellStartD << < num_blocks, num_threads, smemSize >> >(
 		data,
-		numParticles);
+		num_particles);
 	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: reorder data");
@@ -79,38 +79,38 @@ void reorderDataAndFindCellStart(
 
 
 
-void applyXSPH(SimData_SPH data, int numParticles) {
+void applyXSPH(SimData_SPH data, int num_particles) {
 
 
 }
 
 
 
-void computePressure(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void computePressure(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 	
-	computeP <<< numBlocks, numThreads>>>(data, numP);
+	computeP <<< num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute pressure");
 
 }
 
-void computeForce(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void computeForce(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeF <<< numBlocks, numThreads>>>(data, numP);
+	computeF <<< num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute force");
 
 }
 
-void advect(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void advect(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	advectAndCollision <<< numBlocks, numThreads>>> (data, numP);
+	advectAndCollision <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: advection");
 
@@ -125,11 +125,11 @@ void advect(SimData_SPH data, int numP) {
 //
 //==================================================
 
-void computeDensityAlpha(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void computeDensityAlpha(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeDensityAlpha_kernel <<< numBlocks, numThreads>>> (data, numP);
+	computeDensityAlpha_kernel <<< num_blocks, num_threads>>> (data, num_particles);
 	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute df alpha");
@@ -137,11 +137,11 @@ void computeDensityAlpha(SimData_SPH data, int numP) {
 }
 
 
-void computeNonPForce(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void computeNonPForce(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeNPF_kernel <<< numBlocks, numThreads>>> (data, numP);
+	computeNPF_kernel <<< num_blocks, num_threads>>> (data, num_particles);
 	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute non-pressure force");
@@ -149,24 +149,24 @@ void computeNonPForce(SimData_SPH data, int numP) {
 }
 
 void correctDensityError(SimData_SPH data,
-	int numP,
+	int num_particles,
 	int maxiter,
 	float ethres,
 	bool bDebug)
 {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	float error;
 	int iter = 0;
 	//jacobi iteration
-	float* debug = new float[numP];
+	float* debug = new float[num_particles];
 	/*
-	cfloat3* dbg3 = new cfloat3[numP];
-	cudaMemcpy(dbg3, data.v_star, numP*sizeof(cfloat3), cudaMemcpyDeviceToHost);
+	cfloat3* dbg3 = new cfloat3[num_particles];
+	cudaMemcpy(dbg3, data.v_star, num_particles*sizeof(cfloat3), cudaMemcpyDeviceToHost);
 	FILE* fdbg;
 	fdbg = fopen("vstar0.txt", "w+");
-	for (int i=0; i<numP; i++)
+	for (int i=0; i<num_particles; i++)
 	{
 		fprintf(fdbg, "%d %f %f %f\n", i, dbg3[i].x, dbg3[i].y, dbg3[i].z);
 	}
@@ -174,16 +174,16 @@ void correctDensityError(SimData_SPH data,
 	*/
 
 	while (true && iter<maxiter) {
-		solveDensityStiff <<< numBlocks, numThreads>>> (data, numP);
+		solveDensityStiff <<< num_blocks, num_threads>>> (data, num_particles);
 		
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: solve density stiff");
 
 		//get error
 		
-		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		error = -9999;
-		for (int i=0; i<numP; i++) {
+		for (int i=0; i<num_particles; i++) {
 			error = debug[i]>error? debug[i]:error;
 		}
 			
@@ -192,7 +192,7 @@ void correctDensityError(SimData_SPH data,
 		if (error<ethres)
 			break;
 		
-		applyPStiff <<<numBlocks, numThreads>>>(data, numP);
+		applyPStiff <<<num_blocks, num_threads>>>(data, num_particles);
 		
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply density stiff");
@@ -200,16 +200,16 @@ void correctDensityError(SimData_SPH data,
 		iter++;
 	}
 
-	updatePosition <<<numBlocks, numThreads>>>(data, numP);
+	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
 	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update position");
 
 	/*
-	//cfloat3* dbg3 = new cfloat3[numP];
-	cudaMemcpy(dbg3, data.v_star, numP*sizeof(cfloat3), cudaMemcpyDeviceToHost);
+	//cfloat3* dbg3 = new cfloat3[num_particles];
+	cudaMemcpy(dbg3, data.v_star, num_particles*sizeof(cfloat3), cudaMemcpyDeviceToHost);
 	fdbg = fopen("vstar.txt","w+");
-	for (int i=0; i<numP; i++)
+	for (int i=0; i<num_particles; i++)
 	{
 		fprintf(fdbg, "%d %f %f %f\n",i, dbg3[i].x, dbg3[i].y, dbg3[i].z);
 	}
@@ -218,37 +218,37 @@ void correctDensityError(SimData_SPH data,
 }
 
 void correctDivergenceError(SimData_SPH data,
-	int numP,
+	int num_particles,
 	int maxiter,
 	float ethres,
 	bool bDebug)
 {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 	
 	float error;
 	int iter = 0;
 	//jacobi iteration
-	float* debug = new float[numP];
+	float* debug = new float[num_particles];
 	
 	//warm start
-	solveDivergenceStiff <<< numBlocks, numThreads>>> (data, numP);
+	solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
 
 	while (true && iter<maxiter) {
-		solveDivergenceStiff <<< numBlocks, numThreads>>> (data, numP);
+		solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
 		
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: compute divergence stiff");
 
-		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		error = 0;
-		for (int i=0; i<numP; i++)
+		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error? debug[i]:error;		
 		
 		if (error<ethres)
 			break;
 		
-		applyPStiff <<<numBlocks, numThreads>>>(data, numP);
+		applyPStiff <<<num_blocks, num_threads>>>(data, num_particles);
 		
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply divergence stiff");
@@ -257,12 +257,23 @@ void correctDivergenceError(SimData_SPH data,
 	}
 	if (bDebug)
 		printf("%d error: %f\n", iter, error);
-	updateVelocities<<<numBlocks, numThreads>>>(data,numP);
+	updateVelocities<<<num_blocks, num_threads>>>(data,num_particles);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");
 
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -273,58 +284,58 @@ void correctDivergenceError(SimData_SPH data,
 //
 //==================================================
 
-void computeDFAlpha_MPH(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void DFAlpha_Multiphase(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeDFAlpha_MPH_kernel <<< numBlocks, numThreads>>> (data, numP);
+	DFAlphaKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute df alpha multiphase");
 
 }
 
-void updateMassFac(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void EffectiveMass(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	updateMassFac_kernel <<< numBlocks, numThreads>>> (data, numP);
+	EffectiveMassKernel <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update mass factor");
 
 }
 
-void computeNonPForce_MPH(SimData_SPH data, int numP) {
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeNPF_MPH_kernel <<< numBlocks, numThreads>>> (data, numP);
+	computeNPF_MPH_kernel <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute non-pressure force multiphase");
 
 }
 
-void correctDensity_MPH(SimData_SPH data, int numP,
+void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 	int maxiter, float ethres, bool bDebug) {
 
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	float error;
 	int iter = 0;
 	//jacobi iteration
-	float* debug = new float[numP];
+	float* debug = new float[num_particles];
 
 	while (true && iter<maxiter) {
-		solveDensityStiff <<< numBlocks, numThreads>>> (data, numP);
+		solveDensityStiff <<< num_blocks, num_threads>>> (data, num_particles);
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: solve density stiff");
 
 		//get error
 
-		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		error = -9999;
-		for (int i=0; i<numP; i++) {
+		for (int i=0; i<num_particles; i++) {
 			error = debug[i]>error ? debug[i] : error;
 		}
 
@@ -333,7 +344,7 @@ void correctDensity_MPH(SimData_SPH data, int numP,
 		if (error<ethres)
 			break;
 
-		applyPStiff_MPH <<<numBlocks, numThreads>>>(data, numP);
+		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply density stiff");
@@ -341,42 +352,42 @@ void correctDensity_MPH(SimData_SPH data, int numP,
 		iter++;
 	}
 
-	updatePosition <<<numBlocks, numThreads>>>(data, numP);
+	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update position");
 
 }
 
-void correctDivergence_MPH(SimData_SPH data, int numP,
+void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 	int maxiter, float ethres, bool bDebug) {
 
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	float error;
 	int iter = 0;
 	//jacobi iteration
-	float* debug = new float[numP];
+	float* debug = new float[num_particles];
 
 	//warm start
-	solveDivergenceStiff <<< numBlocks, numThreads>>> (data, numP);
+	solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
 
 	while (true && iter<maxiter) {
-		solveDivergenceStiff <<< numBlocks, numThreads>>> (data, numP);
+		solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: compute divergence stiff");
 
-		cudaMemcpy(debug, data.error, numP*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		error = 0;
-		for (int i=0; i<numP; i++)
+		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error ? debug[i] : error;
 
 		if (error<ethres)
 			break;
 
-		applyPStiff_MPH <<<numBlocks, numThreads>>>(data, numP);
+		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply divergence stiff");
@@ -385,7 +396,7 @@ void correctDivergence_MPH(SimData_SPH data, int numP,
 	}
 	if (bDebug)
 		printf("%d error: %f\n", iter, error);
-	updateVelocities<<<numBlocks, numThreads>>>(data, numP);
+	updateVelocities<<<num_blocks, num_threads>>>(data, num_particles);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");
@@ -393,25 +404,25 @@ void correctDivergence_MPH(SimData_SPH data, int numP,
 
 }
 
-void computeDriftVelocity(SimData_SPH data, int numP) {
+void DriftVelocity(SimData_SPH data, int num_particles) {
 	
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeDriftVelocity_kernel<<<numBlocks, numThreads>>>(data, numP);
+	computeDriftVelocity_kernel<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: compute drift velocity");
+	getLastCudaError("Kernel execution failed: drift velocity.");
 
 }
 
-void computePhaseDiffusion(SimData_SPH data, int numP) {
+void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	
-	uint numThreads, numBlocks;
-	computeGridSize(numP, 256, numBlocks, numThreads);
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computePhaseDiffusion_kernel<<<numBlocks, numThreads>>>(data, numP);
+	PhaseDiffusionKernel<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: compute drift velocity");
+	getLastCudaError("Kernel execution failed: phase diffusion.");
 
 }
 
