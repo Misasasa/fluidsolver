@@ -420,10 +420,17 @@ void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
+	PredictPhaseDiffusionKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: predict phase diffusion.");
+
 	PhaseDiffusionKernel<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: phase diffusion.");
 
+	UpdateVolumeFraction<<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: update volume fraction.");
 }
 
 };

@@ -1000,7 +1000,6 @@ __global__ void computeNPF_MPH_kernel(SimData_SPH data, int num_particles) {
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
-	float density = 0;
 	cfloat3 force(0, 0, 0);
 
 	for (int z=-1; z<=1; z++)
@@ -1126,7 +1125,7 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
-	cfloat3* drift_v = &data.driftV[index*dParam.maxtypenum];
+	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
 	cfloat3 vol_frac_gradient[10];
 
 	//for(int k=0; k<dParam.maxtypenum; k++) vol_frac_gradient[k].Set(0,0,0); //initialization
@@ -1135,7 +1134,7 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	cfloat3 drift_acceleration = data.v_star[index];
 	float constant_factor = 4*0.005/3/0.44;
 	float rest_density = data.restDensity[index];
-	float effective_density = data.effective_density[index];
+	//float effective_density = data.effective_density[index];
 	float accel_mode = drift_acceleration.mode();
 	float* vol_frac = data.vFrac + index*dParam.maxtypenum;
 
@@ -1148,18 +1147,137 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 			continue;
 		}
 
-		float density_c = (rest_density - vol_frac_k * density_k) / (1-vol_frac_k);
-		float density_factor = (density_k - effective_density) / density_c;
-		cfloat3 drift_vk2 = drift_acceleration * density_factor * constant_factor;
 
-		float drift_v_mode2 = drift_vk2.mode();
-		float drift_v_mode = sqrt(drift_v_mode2);
+		// square formula, not volume conserving!
 
-		drift_v[k] = drift_vk2 / drift_v_mode * (1 - vol_frac_k);
+		//float density_c = (rest_density - vol_frac_k * density_k) / (1-vol_frac_k);
+		//float density_factor = (density_k - effective_density) / density_c;
+		//cfloat3 drift_vk2 = drift_acceleration * density_factor * constant_factor;
+		//float drift_v_mode2 = drift_vk2.mode();
+		//float drift_v_mode = sqrt(drift_v_mode2);
+		//drift_v[k] = drift_vk2 / drift_v_mode * (1 - vol_frac_k);
+
+
+		// linear formula
+
+		float density_factor = (density_k - rest_density) / rest_density;
+		cfloat3 drift_vk = drift_acceleration * constant_factor * density_factor;
+		drift_v[k] = drift_vk;
+		
+
 		/*if (index % 100==0 && k==0) {
 			printf("%f %f %f, %f %f %f\n", accel_mode, density_factor, drift_v_mode,
 				drift_v[k].x, drift_v[k].y, drift_v[k].z);
 		}*/
+	}
+}
+
+__device__ void PredictPhaseDiffusionCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	float vol_i,
+	SimData_SPH& data,
+	float* phase_update) {
+
+	uint grid_hash = calcGridHash(cell_index);
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff) return;
+	uint end_index = data.gridCellEnd[grid_hash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	int num_type = dParam.maxtypenum;
+
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (j == i || data.type[j]!=TYPE_FLUID) continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.square();
+		if (d2 >= sr2) continue;
+
+		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		float vol_j = data.mass[j] / data.density[j];
+		cfloat3 flux_k;
+
+		for (int k=0; k<num_type; k++) {
+			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
+				- data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
+			phase_update[k] += dot(flux_k, nabla_w);
+		}
+	}
+
+}
+
+__global__ void PredictPhaseDiffusionKernel(SimData_SPH data, int num_particles) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
+	float phase_update[10];
+	float vol_i = data.mass[index] / data.density[index];
+
+	for(int k=0; k<dParam.maxtypenum; k++) phase_update[k]=0; //initialization
+	PredictPhaseDiffusionCell(cell_index, index, xi, vol_i, data, phase_update);
+
+
+	//get flux multiplier: lambda_i for each particle
+
+	float lambda = 1;
+	for (int k=0; k<dParam.maxtypenum; k++) {
+		if(phase_update[k]>=0) continue;
+		float lambda_k = - data.vFrac[index*dParam.maxtypenum+k]/dParam.dt
+			/phase_update[k];
+		if(lambda_k < lambda) lambda = lambda_k;
+	}
+	data.phase_diffusion_lambda[index] = lambda;
+}
+
+
+__device__ void PhaseDiffusionCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	float vol_i,
+	float lambda_i,
+	SimData_SPH& data,
+	float* phase_update) {
+
+	uint grid_hash = calcGridHash(cell_index);
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff) return;
+	uint end_index = data.gridCellEnd[grid_hash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	int num_type = dParam.maxtypenum;
+	float lambda_ij;
+
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (j == i || data.type[j]!=TYPE_FLUID) continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.square();
+		if (d2 >= sr2) continue;
+
+		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		float vol_j = data.mass[j] / data.density[j];
+		cfloat3 flux_k;
+		if(lambda_i < data.phase_diffusion_lambda[j]) //pick up smaller lambda
+			lambda_ij = lambda_i;
+		else
+			lambda_ij = data.phase_diffusion_lambda[j];
+
+		for (int k=0; k<num_type; k++) {
+			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
+				- data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
+			phase_update[k] += dot(flux_k, nabla_w) * lambda_ij;
+		}
 	}
 }
 
@@ -1168,8 +1286,33 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) return;
 
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	float phase_update[10];
+	float vol_i = data.mass[index] / data.density[index];
+	float lambda_i = data.phase_diffusion_lambda[index];
 
+	for (int k=0; k<dParam.maxtypenum; k++) phase_update[k]=0; //initialization
+	PhaseDiffusionCell(cell_index, index, xi, vol_i, lambda_i, data, phase_update);
+
+	//float verify=0;
+	//for (int k=0; k<dParam.maxtypenum; k++) verify+=phase_update[k];
+	/*if(index%100==0)
+		printf("sum phase update: %f %f %f %f\n", 
+			phase_update[0], phase_update[1],phase_update[2],
+			verify);*/
+	
 }
 
+__global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]!=TYPE_FLUID) return;
+
+	float* phase_update = &data.vol_frac_change[index*dParam.maxtypenum];
+
+	for (int k=0; k<dParam.maxtypenum; k++)
+		data.vFrac[index*dParam.maxtypenum+k] += phase_update[k] * dParam.dt;
+}
 
 };

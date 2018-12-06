@@ -563,12 +563,14 @@ void SPHSolver::SetupDeviceBuffer() {
 	int ptnum = maxpnum*hParam.maxtypenum;
 	cudaMalloc(&device_data.vFrac,		ptnum*sizeof(float));
 	cudaMalloc(&device_data.restDensity,	maxpnum*sizeof(float));
-	cudaMalloc(&device_data.driftV,		ptnum*sizeof(cfloat3));
+	cudaMalloc(&device_data.drift_v,		ptnum*sizeof(cfloat3));
+	cudaMalloc(&device_data.effective_mass, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
+	
 	cudaMalloc(&device_data.sortedVFrac,	ptnum*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
-	cudaMalloc(&device_data.effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
-	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_density, maxpnum*sizeof(float));
 
 	int glen = hParam.gridres.prod();

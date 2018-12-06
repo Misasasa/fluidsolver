@@ -71,11 +71,9 @@ struct SimData_SPH {
 	cfloat3* normal;
 	cfloat3* vel;
 	cfloat4* color;
-	int* numCons;
 	int* type;
 	int* group;
 	int* uniqueId;
-	float* lambda;
 	float* mass;
 	float* density;
 	float* pressure;
@@ -105,11 +103,14 @@ struct SimData_SPH {
 	// Multiphase Fluid
 	float* vFrac;
 	float* restDensity;
-	cfloat3* driftV;
-	float* sortedVFrac;
-	float* sortedRestDensity;
+	cfloat3* drift_v;
 	float* effective_mass;
 	float* effective_density;
+	float* phase_diffusion_lambda;
+	float* vol_frac_change;
+
+	float* sortedVFrac;
+	float* sortedRestDensity;
 	float* sorted_effective_mass;
 	float* sorted_effective_density;
 
