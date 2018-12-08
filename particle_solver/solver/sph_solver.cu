@@ -326,7 +326,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 	float* debug = new float[num_particles];
 
 	while (true && iter<maxiter) {
-		solveDensityStiff <<< num_blocks, num_threads>>> (data, num_particles);
+		DensityStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: solve density stiff");
@@ -335,14 +335,10 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		error = -9999;
-		for (int i=0; i<num_particles; i++) {
+		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error ? debug[i] : error;
-		}
-
-		if (bDebug)
-			printf("%d error: %f\n", iter, error);
-		if (error<ethres)
-			break;
+		
+		if (error<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 
@@ -351,9 +347,9 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
+	if (bDebug)	printf("%d density error: %f\n", iter, error);
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
-
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update position");
 
@@ -370,12 +366,8 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 	//jacobi iteration
 	float* debug = new float[num_particles];
 
-	//warm start
-	solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
-
 	while (true && iter<maxiter) {
-		solveDivergenceStiff <<< num_blocks, num_threads>>> (data, num_particles);
-
+		DivergenceFreeStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: compute divergence stiff");
 
@@ -383,25 +375,19 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 		error = 0;
 		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error ? debug[i] : error;
-
-		if (error<ethres)
-			break;
+		if (error<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
-
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply divergence stiff");
 
 		iter++;
 	}
-	if (bDebug)
-		printf("%d error: %f\n", iter, error);
+	if (bDebug)	printf("%d divergence-free error: %f\n", iter, error);
+	
 	UpdateVelocities<<<num_blocks, num_threads>>>(data, num_particles);
-
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");
-
-
 }
 
 void DriftVelocity(SimData_SPH data, int num_particles) {
@@ -414,6 +400,8 @@ void DriftVelocity(SimData_SPH data, int num_particles) {
 	getLastCudaError("Kernel execution failed: drift velocity.");
 
 }
+
+
 
 void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	
@@ -431,6 +419,17 @@ void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	UpdateVolumeFraction<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update volume fraction.");
+	
+	/*
+	float* dbg_pt = new float[num_particles*hParam.maxtypenum];
+	cudaMemcpy(dbg_pt, data.vFrac, num_particles*hParam.maxtypenum*sizeof(float),
+		cudaMemcpyDeviceToHost);
+	float verify=0;
+	for(int i=0; i<num_particles; i++)
+		verify += dbg_pt[i*hParam.maxtypenum];
+	printf("total volume fraction phase 0: %f\n", verify);
+	delete dbg_pt;
+	*/
 }
 
 };

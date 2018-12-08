@@ -33,8 +33,6 @@ struct SimParam_SPH {
 	float mass;
 	float viscosity;
 	float restdensity;
-	float densArr[10];
-	float viscArr[10];
 
 	//kernels
 	float spacing;
@@ -46,8 +44,14 @@ struct SimParam_SPH {
 	float kspline;
 
 
-	//fluid
+	//wc-sph
 	float pressureK;
+
+	//multiphase
+	float densArr[10];
+	float viscArr[10];
+	float drift_dynamic_diffusion;
+	float drift_turbulent_diffusion;
 
 	//solid
 	float solidK;

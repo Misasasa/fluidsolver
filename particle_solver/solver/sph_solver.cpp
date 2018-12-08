@@ -172,7 +172,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 	DFAlpha_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 10, 0.1, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 10, 0.1, false);
 
 	DriftVelocity(device_data, num_particles);
 
@@ -319,7 +319,10 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.pressureK = reader.GetFloat("PressureK");
 	reader.GetFloatN(hParam.densArr, hParam.maxtypenum, "DensityArray");
 	reader.GetFloatN(hParam.viscArr, hParam.maxtypenum, "ViscosityArray");
-
+	
+	//Multiphase
+	hParam.drift_dynamic_diffusion = reader.GetFloat("DriftDynamicDiffusion");
+	hParam.drift_turbulent_diffusion = reader.GetFloat("DriftTurbulentDiffusion");
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -560,15 +563,16 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.sortedPstiff_sum, maxpnum * sizeof(float));
 
 	//Multiphase
-	int ptnum = maxpnum*hParam.maxtypenum;
-	cudaMalloc(&device_data.vFrac,		ptnum*sizeof(float));
+	int num_pt = maxpnum*hParam.maxtypenum;
+	cudaMalloc(&device_data.vFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.restDensity,	maxpnum*sizeof(float));
-	cudaMalloc(&device_data.drift_v,		ptnum*sizeof(cfloat3));
+	cudaMalloc(&device_data.drift_v, num_pt*sizeof(cfloat3));
 	cudaMalloc(&device_data.effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
-	
-	cudaMalloc(&device_data.sortedVFrac,	ptnum*sizeof(float));
+	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
+
+	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_density, maxpnum*sizeof(float));
