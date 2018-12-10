@@ -348,6 +348,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 		iter++;
 	}
 	if (bDebug)	printf("%d density error: %f\n", iter, error);
+	delete debug;
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
@@ -384,7 +385,8 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 		iter++;
 	}
 	if (bDebug)	printf("%d divergence-free error: %f\n", iter, error);
-	
+	delete debug;
+
 	UpdateVelocities<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update velocities");

@@ -881,7 +881,6 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 	if (denom<0.000001)
 		denom = 0.000001;//clamp for stability
 	data.alpha[index] = data.density[index]/ denom;
-
 }
 
 
@@ -1276,15 +1275,32 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
 	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
-	cfloat3 vol_frac_gradient[10];
+	cfloat3* vol_frac_gradient = &data.vol_frac_gradient[index*dParam.maxtypenum];
 
-	//for(int k=0; k<dParam.maxtypenum; k++) vol_frac_gradient[k].Set(0,0,0); //initialization
-	//VolumeFractionGradientCell(cell_index, index, xi, data, vol_frac_gradient);
+
+	float turbulent_diffusion = dParam.drift_turbulent_diffusion;
+	for(int k=0; k<dParam.maxtypenum; k++) vol_frac_gradient[k].Set(0,0,0); //initialization
+	
+	
+	for (int z=-1; z<=1; z++) 
+		for (int y=-1; y<=1; y++)	
+			for (int x=-1; x<=1; x++) {
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				VolumeFractionGradientCell(
+					neighbor_cell_index, 
+					index,
+					xi, 
+					data, 
+					vol_frac_gradient);
+			}
+	for (int k=0; k<dParam.maxtypenum; k++) 
+		vol_frac_gradient[k] *= turbulent_diffusion;
+
 
 	cfloat3 drift_acceleration = data.v_star[index];
 	float dynamic_constant = dParam.drift_dynamic_diffusion; // 4*0.005/3/0.44
+
 	float rest_density = data.restDensity[index];
-	//float effective_density = data.effective_density[index];
 	float accel_mode = drift_acceleration.mode();
 	float* vol_frac = data.vFrac + index*dParam.maxtypenum;
 
@@ -1292,33 +1308,18 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 		float density_k = dParam.densArr[k];
 		float vol_frac_k = vol_frac[k];
 		
-		if (vol_frac_k < EPSILON || accel_mode < EPSILON || vol_frac_k > 1-EPSILON) {
-			drift_v[k].Set(0,0,0);
-			continue;
+		//if phase k doesnot exist£¬ continue
+		if (vol_frac_k < EPSILON) { 
+			drift_v[k].Set(0,0,0);	continue;
 		}
 
-
-		// square formula, not volume conserving!
-
-		//float density_c = (rest_density - vol_frac_k * density_k) / (1-vol_frac_k);
-		//float density_factor = (density_k - effective_density) / density_c;
-		//cfloat3 drift_vk2 = drift_acceleration * density_factor * constant_factor;
-		//float drift_v_mode2 = drift_vk2.mode();
-		//float drift_v_mode = sqrt(drift_v_mode2);
-		//drift_v[k] = drift_vk2 / drift_v_mode * (1 - vol_frac_k);
-
-
-		// linear formula
-
+		//dynamic term
 		float density_factor = (density_k - rest_density) / rest_density;
 		cfloat3 drift_vk = drift_acceleration * dynamic_constant * density_factor;
 		drift_v[k] = drift_vk;
-		
 
-		/*if (index % 100==0 && k==0) {
-			printf("%f %f %f, %f %f %f\n", accel_mode, density_factor, drift_v_mode,
-				drift_v[k].x, drift_v[k].y, drift_v[k].z);
-		}*/
+		//turbulent term
+		//drift_v[k] += vol_frac_gradient[k] * turbulent_diffusion / data.vFrac[index*dParam.maxtypenum+k];
 	}
 }
 
@@ -1352,8 +1353,14 @@ __device__ void PredictPhaseDiffusionCell(
 		cfloat3 flux_k;
 
 		for (int k=0; k<num_type; k++) {
+			//dynamic flux
 			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
 				+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
+			phase_update[k] += dot(flux_k, nabla_w) * (-1);
+
+			//turbulent diffusion
+			flux_k = data.vol_frac_gradient[i*num_type+k]*vol_i
+				+ data.vol_frac_gradient[j*num_type+k]*vol_j;
 			phase_update[k] += dot(flux_k, nabla_w) * (-1);
 		}
 	}
@@ -1372,11 +1379,20 @@ __global__ void PredictPhaseDiffusionKernel(SimData_SPH data, int num_particles)
 	float vol_i = data.mass[index] / data.density[index];
 
 	for(int k=0; k<dParam.maxtypenum; k++) vol_frac_change[k]=0; //initialization
-	PredictPhaseDiffusionCell(cell_index, index, xi, vol_i, data, vol_frac_change);
-
+	for (int z=-1; z<=1; z++) for (int y=-1; y<=1; y++)	for (int x=-1; x<=1; x++) 
+	{
+		cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+		PredictPhaseDiffusionCell(
+			neighbor_cell_index,
+			index, 
+			xi, 
+			vol_i,
+			data, 
+			vol_frac_change);
+	}
 
 	//get flux multiplier: lambda_i for each particle
-
+	
 	float lambda = 1;
 	for (int k=0; k<dParam.maxtypenum; k++) {
 		if(vol_frac_change[k]>=0) continue;
@@ -1407,7 +1423,7 @@ __device__ void PhaseDiffusionCell(
 	float sr = dParam.smoothradius;
 	float sr2 = sr*sr;
 	int num_type = dParam.maxtypenum;
-	float lambda_ij;
+	float lambda_ij, inc;
 
 	for (uint j = start_index; j < end_index; j++)
 	{
@@ -1429,12 +1445,15 @@ __device__ void PhaseDiffusionCell(
 		for (int k=0; k<num_type; k++) {
 			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
 				+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-			
-			float inc = dot(flux_k, nabla_w) * lambda_ij * (-1);
+			inc = dot(flux_k, nabla_w) * lambda_ij * (-1);
+			vol_frac_change[k] += inc;
+
+			//turbulent diffusion
+			flux_k = data.vol_frac_gradient[i*num_type+k]*vol_i
+				+ data.vol_frac_gradient[j*num_type+k]*vol_j;
+			inc = dot(flux_k, nabla_w) * (-1) * lambda_ij;
 			vol_frac_change[k] += inc;
 		}
-
-		
 	}
 }
 
@@ -1455,20 +1474,31 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	float lambda_i = data.phase_diffusion_lambda[index];
 
 	for (int k=0; k<dParam.maxtypenum; k++) vol_frac_change[k]=0; //initialization
-	PhaseDiffusionCell(cell_index, index, xi, vol_i, lambda_i, data, vol_frac_change);
-
+	for (int z=-1; z<=1; z++) 
+		for (int y=-1; y<=1; y++)	
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				PhaseDiffusionCell(
+					neighbor_cell_index,
+					index,
+					xi,
+					vol_i,
+					lambda_i,
+					data,
+					vol_frac_change);
+			}
 	for (int k=0; k<dParam.maxtypenum; k++)
 		data.vol_frac_change[index*dParam.maxtypenum+k] = vol_frac_change[k];
-
-	/*
+	
+	
 	float verify=0;
 	for (int k=0; k<dParam.maxtypenum; k++) verify+=vol_frac_change[k];
-	if(index%100==0)
+	/*if(index%1000==0)
 		printf("sum phase update: %f %f %f %f\n", 
 			vol_frac_change[0], vol_frac_change[1], vol_frac_change[2],
-			verify);
-			*/
-	
+			verify);*/
+			
 }
 
 __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
@@ -1482,23 +1512,13 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	float normalize=0;
 	for (int k=0; k<dParam.maxtypenum; k++){
 		vol_frac[k] += vol_frac_change[k] * dParam.dt;
-		/*if(data.vFrac[index*dParam.maxtypenum+k] < -0.0001)
-			debug=true;*/
+		if(data.vFrac[index*dParam.maxtypenum+k] < -0.0001)
+			debug=true;
 		if(vol_frac[k]<0) vol_frac[k] = 0;
 		normalize += vol_frac[k];
 	}
 	for (int k=0; k<dParam.maxtypenum; k++)
 		vol_frac[k] /= normalize;
-
-	/*if(debug)
-		printf("%d %f %f %f\n", index, data.vFrac[index*dParam.maxtypenum],
-			data.vFrac[index*dParam.maxtypenum+1],
-			data.vFrac[index*dParam.maxtypenum+2]);*/
-	/*if(index%1000==0)
-		printf("%f %f %f\n", data.vFrac[index*dParam.maxtypenum],
-			data.vFrac[index*dParam.maxtypenum+1],
-			data.vFrac[index*dParam.maxtypenum+2]);*/
-	
 }
 
 };

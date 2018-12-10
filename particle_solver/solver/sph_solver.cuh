@@ -108,6 +108,7 @@ struct SimData_SPH {
 	float* vFrac;
 	float* restDensity;
 	cfloat3* drift_v;
+	cfloat3* vol_frac_gradient;
 	float* effective_mass;
 	float* effective_density;
 	float* phase_diffusion_lambda;
