@@ -41,7 +41,8 @@ struct SimParam_SPH {
 	float kspiky;
 	float kspikydiff;
 	float klaplacian;
-	float kspline;
+	float kernel_cubic;
+	float kernel_cubic_gradient;
 
 
 	//wc-sph
@@ -247,3 +248,5 @@ void DriftVelocity(SimData_SPH data, int numP);
 void PhaseDiffusion(SimData_SPH data, int numP);
 
 };
+
+

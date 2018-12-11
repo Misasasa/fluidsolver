@@ -53,7 +53,7 @@
 
 	<DT> 0.0004 </DT>
 	<PSpacing> 0.005 </PSpacing>
-	<SmoothRatio> 1.6 </SmoothRatio>
+	<SmoothRatio> 2 </SmoothRatio>
 	
 	<Viscosity>	 0.0005	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
@@ -61,23 +61,23 @@
 
 	<DensityRatio> 1,   1,   1  </DensityRatio>
 	<ViscRatio>    1,   1,   1   </ViscRatio>
-	<DensityArray> 500,1000,2000 </DensityArray>
-	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
+	<DensityArray> 1000,1000,2000 </DensityArray>
+	<ViscosityArray> 500,1000,2000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.07,  0.015,  0.01	</VolMin>
+		<VolMin>	-0.07,  0.017,  0.01	</VolMin>
 		<VolMax>	-0.01,  0.35,  0.06	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 	</Vol>
 
 	<Vol>
-		<VolMin>	0.01,  0.015,  0.01	</VolMin>
+		<VolMin>	0.01,  0.017,  0.01	</VolMin>
 		<VolMax>	0.07,  0.35,  0.06	</VolMax>
 		<VolFrac>   0,  1,  0 </VolFrac>
 	</Vol>
 
 	<Vol>
-		<VolMin>	-0.03,  0.015,  -0.06	</VolMin>
+		<VolMin>	-0.03,  0.017,  -0.06	</VolMin>
 		<VolMax>	0.03,  0.35,  -0.01	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
 	</Vol>
@@ -94,7 +94,7 @@
 	<Pairwise_k> 1.8 </Pairwise_k>
 	<Pairwise_c> 50000 </Pairwise_c>
 
-	<DriftDynamicDiffusion> 0 </DriftDynamicDiffusion>
+	<DriftDynamicDiffusion> 0. </DriftDynamicDiffusion>
 	<DriftTurbulentDiffusion> -0.01 </DriftTurbulentDiffusion>
 </MultiScene>
 
@@ -106,7 +106,7 @@
 
 	<DT> 0.0004 </DT>
 	<PSpacing> 0.005 </PSpacing>
-	<SmoothRatio> 1.6 </SmoothRatio>
+	<SmoothRatio> 2 </SmoothRatio>
 	
 	<Viscosity>	 0.0005	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
@@ -116,12 +116,12 @@
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.07,  0.015,  -0.05	</VolMin>
+		<VolMin>	-0.07,  0.02,  -0.05	</VolMin>
 		<VolMax>	0.07,  0.35,  0.05	</VolMax>
 		<VolFrac>   0.5,  0.5,  0 </VolFrac>
 	</Vol>
-	<DriftDynamicDiffusion> 0.000 </DriftDynamicDiffusion>
-	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
+	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
+	<DriftTurbulentDiffusion> 0 </DriftTurbulentDiffusion>
 
 </MultiScene>
 

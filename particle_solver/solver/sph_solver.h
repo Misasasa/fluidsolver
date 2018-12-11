@@ -32,7 +32,7 @@ public:
 	veci	host_id_table;
 	vecf	host_rest_density; //rest density
 	vecf	host_vol_frac; //volume fraction
-
+	vecf3	host_v_star;
 
 	SimData_SPH device_data;
 	

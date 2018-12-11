@@ -338,6 +338,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error ? debug[i] : error;
 		
+		if (bDebug)	printf("%d density error: %f\n", iter, error);
 		if (error<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
@@ -347,7 +348,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
-	if (bDebug)	printf("%d density error: %f\n", iter, error);
+	
 	delete debug;
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
@@ -409,11 +410,11 @@ void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
-
+	
 	PredictPhaseDiffusionKernel <<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: predict phase diffusion.");
-
+	
 	PhaseDiffusionKernel<<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: phase diffusion.");
@@ -422,16 +423,16 @@ void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: update volume fraction.");
 	
-	/*
-	float* dbg_pt = new float[num_particles*hParam.maxtypenum];
+	
+	/*float* dbg_pt = new float[num_particles*hParam.maxtypenum];
 	cudaMemcpy(dbg_pt, data.vFrac, num_particles*hParam.maxtypenum*sizeof(float),
 		cudaMemcpyDeviceToHost);
 	float verify=0;
 	for(int i=0; i<num_particles; i++)
 		verify += dbg_pt[i*hParam.maxtypenum];
 	printf("total volume fraction phase 0: %f\n", verify);
-	delete dbg_pt;
-	*/
+	delete dbg_pt;*/
+	
 }
 
 };

@@ -67,13 +67,15 @@ void SPHSolver::CopyFromDeviceFull() {
 	cudaMemcpy(host_x.data(), device_data.pos, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_color.data(), device_data.color, num_particles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
 
-	cudaMemcpy(host_mass.data(),	device_data.mass, sizeof(float)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_v.data(),		device_data.vel, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_type.data(), device_data.type, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_group.data(), device_data.group, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_mass.data(),	device_data.mass, sizeof(float)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_unique_id.data(), device_data.uniqueId, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_id_table.data(), device_data.indexTable, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
 	//multiphase
 	cudaMemcpy(host_vol_frac.data(), device_data.vFrac, sizeof(float)*num_particles*hParam.maxtypenum, cudaMemcpyDeviceToHost);
-
+	cudaMemcpy(host_v_star.data(), device_data.v_star, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
 }
 
 
@@ -153,6 +155,8 @@ V_m denotes the volume-averaged velocity of each particle.
 void SPHSolver::SetupMultiphaseSPH() {
 	SetupFluidScene();
 	Sort();
+
+	EffectiveMass(device_data, num_particles);
 	DFAlpha_Multiphase(device_data, num_particles);
 }
 
@@ -165,14 +169,14 @@ void SPHSolver::SolveMultiphaseSPH() {
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 20, 0.1, false);
+	EnforceDensity_Multiphase(device_data, num_particles, 10, 0.1, false);
 
 	Sort();
 	
 	DFAlpha_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.1, false);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 10, 0.1, false);
 	
 	DriftVelocity(device_data, num_particles);
 	
@@ -222,22 +226,46 @@ void SPHSolver::DumpSimulationDataText() {
 	fprintf(fp, "%d\n", num_particles);
 	for (int i=0; i<num_particles; i++) {
 		fprintf(fp, "%f %f %f ", host_x[i].x, host_x[i].y, host_x[i].z);
-		fprintf(fp, "%f %f %f %f ", host_color[i].x, host_color[i].y, host_color[i].z, host_color[i].w);
 		fprintf(fp, "%f %f %f ", host_v[i].x, host_v[i].y, host_v[i].z);
 		fprintf(fp, "%d ", host_type[i]);
 		fprintf(fp, "%d ", host_group[i]);
 		fprintf(fp, "%f ", host_mass[i]);
 		fprintf(fp, "%d ", host_unique_id[i]);
+		fprintf(fp, "%f %f %f ",host_v_star[i].x, host_v_star[i].y, host_v_star[i].z);
+		
+		for(int k=0;k<hParam.maxtypenum;k++)
+			fprintf(fp, "%f ", host_vol_frac[i*hParam.maxtypenum+k]);
+		fprintf(fp, "\n");
 	}
 	fclose(fp);
 }
 
 void SPHSolver::LoadSimulationDataText(char* filepath, cmat4& materialMat) {
+	
+	printf("Loading simulation data text from %s", filepath);	
 	FILE* fp = fopen(filepath, "r");
-	if (fp==NULL) {
-		printf("error loading simulation data\n");
-		return;
+	if (fp == NULL) {
+		printf("error opening file\n"); return;
 	}
+	// Particle Data
+	fscanf(fp, "%d\n", &num_particles);
+	for (int pi=0; pi<num_particles; pi++) {
+
+		int i = AddDefaultParticle();
+
+		fscanf(fp, "%f %f %f ", &host_x[i].x, &host_x[i].y, &host_x[i].z);
+		fscanf(fp, "%f %f %f ", &host_v[i].x, &host_v[i].y, &host_v[i].z);
+		fscanf(fp, "%d ", &host_type[i]);
+		fscanf(fp, "%d ", &host_group[i]);
+		fscanf(fp, "%f ", &host_mass[i]);
+		fscanf(fp, "%d ", &host_unique_id[i]);
+		fscanf(fp, "%f %f %f ", &host_v_star[i].x, &host_v_star[i].y, &host_v_star[i].z);
+
+		for (int k=0; k<hParam.maxtypenum; k++)
+			fscanf(fp, "%f ", &host_vol_frac[i*hParam.maxtypenum+k]);
+		fscanf(fp,"\n");
+	}
+	fclose(fp);
 }
 
 
@@ -363,8 +391,8 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.kspiky =  15 / (3.141592 * pow(sr, 6.0f));
 	hParam.kspikydiff = -45.0f / (3.141592 * pow(sr, 6.0f));
 	hParam.klaplacian = 45.0f / (3.141592 * pow(sr, 6.0f));
-	hParam.kspline = 1.0f/3.141593f/pow(sr, 3.0f);
-
+	hParam.kernel_cubic = 1/3.141593/pow(sr/2,3);
+	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
 	/*
 	for (int k=0; k<hParam.maxtypenum; k++) {
 		hParam.densArr[k] = hParam.restdensity * densratio[k];
@@ -405,6 +433,7 @@ int SPHSolver::AddDefaultParticle() {
 	host_mass.push_back(0);
 	host_group.push_back(0);
 	host_rest_density.push_back(0);
+	host_v_star.push_back(cfloat3(0,0,0));
 
 	for(int t=0; t<hParam.maxtypenum; t++)
 		host_vol_frac.push_back(0);

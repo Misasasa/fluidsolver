@@ -30,6 +30,29 @@ __inline__ __device__ cfloat3 KernelGradient_Spiky(float smooth_radius,
 	return xij * factor;
 }
 
+__inline__ __device__ float Kernel_Cubic(float h, cfloat3 xij)
+{
+	float q = xij.mode()/h;
+	float fq;
+	if(q>=2) return 0;
+	if(q>=1) fq = (2-q)*(2-q)*(2-q)*0.25;
+	else fq = (0.666667 - q*q + 0.5*q*q*q)*1.5;
+	return fq*dParam.kernel_cubic;
+}
+
+__inline__ __device__ cfloat3 KernelGradient_Cubic(float h, 
+	cfloat3 xij) {
+	float r = xij.mode();
+	float q = r/h;
+	if(q>=2 || q<EPSILON) return cfloat3(0,0,0);
+	float df;
+	if(q>=1)
+		df = 0.5*(2-q)*(2-q)*(-1);
+	else
+		df = (-2*q + 1.5*q*q);
+	return xij * df * dParam.kernel_cubic_gradient /r;
+}
+
 
 
 __device__ uint calcGridHash(cint3 gridPos)
@@ -828,7 +851,7 @@ __device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 	
 	for (uint j = startIndex; j < endIndex; j++)
 	{
-		if (j == i || data.type[j]!=TYPE_FLUID)	continue;
+		if (data.type[j]!=TYPE_FLUID)	continue;
 		
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
@@ -837,9 +860,15 @@ __device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 		if (d2 >= sr2) continue;
 
 		float c2 = sr2 - d2;
-		cfloat3 nablaw = KernelGradient_Spiky(sr, xij);
-		
-		density += c2*c2*c2 * data.mass[i];
+		cfloat3 nablaw = KernelGradient_Cubic(sr/2, xij);
+		density += Kernel_Cubic(sr/2,xij)*data.mass[i];
+
+		/*if (i%100==0) {
+			printf("%d %d %f %f,\
+				%f %f %f\n",i,j,sqrt(d2), sr/2, nablaw.x, nablaw.y, nablaw.z);
+		}*/
+
+		//density += c2*c2*c2 * data.mass[i];
 		sum1 += nablaw;
 		sum2 += dot(nablaw, nablaw) / data.effective_mass[j];
 	}
@@ -870,10 +899,7 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 					data);
 			}
 
-
-	float sr2 = dParam.smoothradius * dParam.smoothradius;
-	density += sr2*sr2*sr2*data.mass[index];
-	density *= dParam.kpoly6;
+	//density *= dParam.kpoly6;
 	data.density[index] = density;
 
 	float denom = (dot(sum1, sum1) / data.effective_mass[index] + sum2)
@@ -881,6 +907,8 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 	if (denom<0.000001)
 		denom = 0.000001;//clamp for stability
 	data.alpha[index] = data.density[index]/ denom;
+
+	//printf("%d %f %f %f\n",index, data.alpha[index], sum2, denom);
 }
 
 
@@ -966,7 +994,10 @@ __device__ void NonPressureForce_MPH_Cell(cint3 gridPos,
 	}
 }
 
-__global__ void computeNPF_MPH_kernel(SimData_SPH data, int num_particles) {
+__global__ void computeNPF_MPH_kernel(
+	SimData_SPH data,
+	int num_particles)
+{
 	//viscosity, collision, gravity,
 	//phase momentum diffusion
 
@@ -1026,7 +1057,8 @@ __device__ void PredictDensityCell_Multiphase(
 
 		if (d2 >= sr2) continue;
 
-		cfloat3 nwij = KernelGradient_Spiky(sr, xij) * data.mass[index];
+		//cfloat3 nwij = KernelGradient_Spiky(sr, xij) * data.mass[index];
+		cfloat3 nwij = KernelGradient_Cubic(sr/2, xij) * data.mass[index];
 		density += dot(vij, nwij) * dParam.dt;
 	}
 }
@@ -1092,12 +1124,7 @@ __device__ void DensityChangeCell_Multiphase(
 
 		if (d2 >= sr2) continue;
 
-		float d = sqrt(d2);
-		float c2 = sr2 - d2;
-		float c = sr - d;
-		float nablaw = dParam.kspikydiff * c * c / d;
-
-		cfloat3 nwij = xij * nablaw * data.mass[index];
+		cfloat3 nwij = KernelGradient_Cubic(sr/2, xij) * data.mass[index];
 		densChange += dot(vij, nwij);
 	}
 }
@@ -1126,6 +1153,7 @@ __global__ void DivergenceFreeStiff_Multiphase(SimData_SPH data, int num_particl
 					data);
 			}
 	if (densChange < 0) densChange = 0;
+	if (data.density[index]<data.restDensity[index]) densChange = 0;
 	data.error[index] = densChange / data.restDensity[index];
 	data.pstiff[index] = densChange/ dParam.dt * data.alpha[index];
 }
@@ -1159,7 +1187,8 @@ __device__ void ApplyPressureCell_Multiphase(
 
 		if (d2 >= sr2) continue;
 
-		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		//cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		force += nabla_w * (data.pstiff[i]*mass_i*mass_i/data.density[i]
 			+ data.pstiff[j]*data.mass[j]*data.mass[j]/data.density[j]);
 	}
@@ -1186,7 +1215,7 @@ __global__ void ApplyPressureKernel_Multiphase(SimData_SPH data, int num_particl
 					data,
 					force);
 			}
-
+	//printf("%f %f %f\n", force.x,force.y,force.z);
 	data.v_star[index] += force * dParam.dt *(-1) / data.effective_mass[index];
 }
 
@@ -1207,11 +1236,10 @@ __global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 	float* vol_frac = &data.vFrac[index*dParam.maxtypenum];
 	
 	for (int k=0; k<dParam.maxtypenum; k++) {
-		float mass_frac = vol_frac[k] * dParam.densArr[k] / data.restDensity[index]; //mass fraction
-		if(mass_frac < EPSILON)
-			continue;
+		float mass_frac = vol_frac[k] * dParam.densArr[k] / data.restDensity[index];
+		if(mass_frac < EPSILON)	continue;
+		
 		beta += vol_frac[k] * vol_frac[k] / mass_frac;
-		effective_density += vol_frac[k] / dParam.densArr[k];
 		rest_density += vol_frac[k] * dParam.densArr[k];
 	}
 	if(beta < EPSILON){
@@ -1219,14 +1247,14 @@ __global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 		printf("error value for beta.\n");
 	}
 
+	//update mass
+	data.mass[index] = rest_density * dParam.spacing*dParam.spacing*dParam.spacing;
 	data.effective_mass[index] = data.mass[index] / beta;
-	data.effective_density[index] = 1 / effective_density;
+
 	data.restDensity[index] = rest_density;
 	data.color[index].Set(vol_frac[0], vol_frac[1], vol_frac[2], 1);
 	if(vol_frac[0]<0.9 && vol_frac[1]<0.9)
 		data.color[index].w = 1;
-	//if(index %100==0)
-	//	printf("%f\n", data.effective_density[index]);
 }
 
 
@@ -1253,7 +1281,7 @@ __device__ void VolumeFractionGradientCell(
 		float d2 = xij.square();
 		if (d2 >= sr2) continue;
 
-		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		float vj = data.mass[j] / data.density[j];
 		cfloat3 contribution;
 		
@@ -1348,7 +1376,7 @@ __device__ void PredictPhaseDiffusionCell(
 		float d2 = xij.square();
 		if (d2 >= sr2) continue;
 
-		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		float vol_j = data.mass[j] / data.density[j];
 		cfloat3 flux_k;
 
@@ -1422,9 +1450,9 @@ __device__ void PhaseDiffusionCell(
 	uint end_index = data.gridCellEnd[grid_hash];
 	float sr = dParam.smoothradius;
 	float sr2 = sr*sr;
-	int num_type = dParam.maxtypenum;
 	float lambda_ij, inc;
 
+	int num_type = dParam.maxtypenum;
 	for (uint j = start_index; j < end_index; j++)
 	{
 		if (j == i || data.type[j]!=TYPE_FLUID) continue;
@@ -1434,7 +1462,7 @@ __device__ void PhaseDiffusionCell(
 		float d2 = xij.square();
 		if (d2 >= sr2) continue;
 
-		cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		float vol_j = data.mass[j] / data.density[j];
 		cfloat3 flux_k;
 		if(lambda_i < data.phase_diffusion_lambda[j]) //pick up smaller lambda
@@ -1442,10 +1470,10 @@ __device__ void PhaseDiffusionCell(
 		else
 			lambda_ij = data.phase_diffusion_lambda[j];
 
-		for (int k=0; k<num_type; k++) {
+		for (int k=0; k<dParam.maxtypenum; k++) {
 			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
 				+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-			inc = dot(flux_k, nabla_w) * lambda_ij * (-1);
+			inc = dot(flux_k, nabla_w) * (-1) * lambda_ij;
 			vol_frac_change[k] += inc;
 
 			//turbulent diffusion
@@ -1469,7 +1497,7 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	}
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
-	float vol_frac_change[10];
+	float* vol_frac_change = &data.vol_frac_change[index*dParam.maxtypenum];
 	float vol_i = data.mass[index] / data.density[index];
 	float lambda_i = data.phase_diffusion_lambda[index];
 
@@ -1488,16 +1516,12 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 					data,
 					vol_frac_change);
 			}
-	for (int k=0; k<dParam.maxtypenum; k++)
-		data.vol_frac_change[index*dParam.maxtypenum+k] = vol_frac_change[k];
 	
-	
-	float verify=0;
-	for (int k=0; k<dParam.maxtypenum; k++) verify+=vol_frac_change[k];
-	/*if(index%1000==0)
-		printf("sum phase update: %f %f %f %f\n", 
-			vol_frac_change[0], vol_frac_change[1], vol_frac_change[2],
-			verify);*/
+	//float verify=0;
+	//for (int k=0; k<dParam.maxtypenum; k++) verify+=vol_frac_change[k];
+	//if( abs(verify) > EPSILON )
+	//	printf("sum phase update: %d %f %f %f\n",  index,
+	//		vol_frac_change[0], vol_frac_change[1], vol_frac_change[2]);
 			
 }
 
