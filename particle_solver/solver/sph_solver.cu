@@ -308,7 +308,7 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	computeNPF_MPH_kernel <<< num_blocks, num_threads>>> (data, num_particles);
+	NonPressureForceKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute non-pressure force multiphase");
 

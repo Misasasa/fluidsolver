@@ -913,7 +913,7 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 
 
 
-__device__ void NonPressureForce_MPH_Cell(cint3 gridPos,
+__device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 	int index,
 	cfloat3 pos,
 	cfloat3& force,
@@ -978,7 +978,7 @@ __device__ void NonPressureForce_MPH_Cell(cint3 gridPos,
 				float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
 				force += xij * magnitude;
 
-				//artificial visc
+				//artificial viscosity
 				cfloat3 vij = data.vel[index] - data.vel[j];
 				float xv = dot(vij, xij);
 				if (xv < 0) {
@@ -994,7 +994,7 @@ __device__ void NonPressureForce_MPH_Cell(cint3 gridPos,
 	}
 }
 
-__global__ void computeNPF_MPH_kernel(
+__global__ void NonPressureForceKernel_Multiphase(
 	SimData_SPH data,
 	int num_particles)
 {
@@ -1016,7 +1016,7 @@ __global__ void computeNPF_MPH_kernel(
 		for (int y=-1; y<=1; y++)
 			for (int x=-1; x<=1; x++) {
 				cint3 nPos = gridPos + cint3(x, y, z);
-				NonPressureForce_MPH_Cell(nPos,
+				NonPressureForceCell_Multiphase(nPos,
 					index,
 					pos,
 					force,
