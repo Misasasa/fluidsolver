@@ -338,7 +338,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 		for (int i=0; i<num_particles; i++)
 			error = debug[i]>error ? debug[i] : error;
 		
-		
+		if (bDebug)	printf("%d density error: %f\n", iter, error);
 		if (error<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
@@ -348,7 +348,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
-	if (bDebug)	printf("%d density error: %f\n", iter, error);
+	
 	delete debug;
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);

@@ -163,9 +163,9 @@ void SPHSolver::SetupMultiphaseSPH() {
 
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	PhaseDiffusion(device_data, num_particles);
+	//PhaseDiffusion(device_data, num_particles);
 	
-	EffectiveMass(device_data, num_particles);
+	//EffectiveMass(device_data, num_particles);
 
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
@@ -177,9 +177,9 @@ void SPHSolver::SolveMultiphaseSPH() {
 	DFAlpha_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.1, false);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 0, 0.1, false);
 	
-	DriftVelocity(device_data, num_particles);
+	//DriftVelocity(device_data, num_particles);
 	
 	CopyFromDevice();
 

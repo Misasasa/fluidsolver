@@ -72,9 +72,9 @@ public:
 					so->normal.push_back(cfloat3(0, 1, 0));
 					so->type.push_back(TYPE_BOUNDARY);
 
-					so->pos.push_back(cfloat3(x, xmax.y, z));
-					so->normal.push_back(cfloat3(0, -1, 0));
-					so->type.push_back(TYPE_BOUNDARY);
+					//so->pos.push_back(cfloat3(x, xmax.y, z));
+					//so->normal.push_back(cfloat3(0, -1, 0));
+					//so->type.push_back(TYPE_BOUNDARY);
 				}
 					
 		}

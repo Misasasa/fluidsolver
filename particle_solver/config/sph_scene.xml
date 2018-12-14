@@ -2,10 +2,10 @@
 	<AccelLimit>	1500.0		</AccelLimit>
 	<VelLimit>		100		</VelLimit>
 	<Gravity>	0, -9.8, 0		</Gravity>
-	<VolMin> -0.2, 0, -0.2 </VolMin>
-	<VolMax>  0.2,  0.8,   0.2 </VolMax>
+	<VolMin> -0.2, -0.1, -0.2 </VolMin>
+	<VolMax>  0.2,  1,   0.2 </VolMax>
 	
-	<SceneId> 2 </SceneId>
+	<SceneId> 1 </SceneId>
 
 </Fluid>
 
@@ -15,7 +15,7 @@
 	<MaxPNum> 100000 </MaxPNum>
 	<TypeNum> 3 </TypeNum>
 
-	<DT> 0.004 </DT>
+	<DT> 0.0004 </DT>
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 1.6 </SmoothRatio>
 	
@@ -61,8 +61,8 @@
 
 	<DensityRatio> 1,   1,   1  </DensityRatio>
 	<ViscRatio>    1,   1,   1   </ViscRatio>
-	<DensityArray> 1000,1000,2000 </DensityArray>
-	<ViscosityArray> 500,1000,2000 </ViscosityArray>
+	<DensityArray> 500,1000,2000 </DensityArray>
+	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
 		<VolMin>	-0.07,  0.017,  0.01	</VolMin>
@@ -82,20 +82,14 @@
 		<VolFrac>   0,  0,  1 </VolFrac>
 	</Vol>
 
-    <!--Vol>
-    	<VolMin>	-7,   32, -7	</VolMin>
-		<VolMax>   7,  46,  7	</VolMax>
-		<VolFrac>  0,  1,  0  </VolFrac>
-    </Vol-->
-
 	<SurfaceTensionK> 0 </SurfaceTensionK>
 	<SurfaceTensionFluidC> 0 </SurfaceTensionFluidC>
 	<FBlending> 1 </FBlending>
 	<Pairwise_k> 1.8 </Pairwise_k>
 	<Pairwise_c> 50000 </Pairwise_c>
 
-	<DriftDynamicDiffusion> 0. </DriftDynamicDiffusion>
-	<DriftTurbulentDiffusion> -0.01 </DriftTurbulentDiffusion>
+	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
+	<DriftTurbulentDiffusion> -0.0005 </DriftTurbulentDiffusion>
 </MultiScene>
 
 <MultiScene id="2">
@@ -112,21 +106,21 @@
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 
-	<DensityArray> 500,1000,1000 </DensityArray>
+	<DensityArray> 500,2000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.07,  0.02,  -0.05	</VolMin>
-		<VolMax>	0.07,  0.35,  0.05	</VolMax>
+		<VolMin>	-0.05,  0.015,  -0.05	</VolMin>
+		<VolMax>	0.05,  0.65,  0.05 </VolMax>
 		<VolFrac>   0.5,  0.5,  0 </VolFrac>
 	</Vol>
-	<DriftDynamicDiffusion> 0.003 </DriftDynamicDiffusion>
+	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
 	<DriftTurbulentDiffusion> -0.001 </DriftTurbulentDiffusion>
 
 </MultiScene>
 
 <BoundInfo id="1">
-	<Viscosity>	0.0001		</Viscosity>
+	<Viscosity>	0.0005		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>
 	<Mass>		0.00010543	</Mass>
 	<BoundStiff>	5000	</BoundStiff>

@@ -893,13 +893,19 @@ __device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 			density += Kernel_Cubic(sr/2, xij)*emass_j;
 			break;
 		case TYPE_RIGID:
-			emass_j = data.restDensity[j]*data.restDensity[i];
-			//emass_j = data.mass[i];
+			//emass_j = data.restDensity[j]*data.restDensity[i];
+			emass_j = data.mass[i];
 			nablaw *= emass_j;
 			sum1 += nablaw;
 			density += Kernel_Cubic(sr/2, xij)*emass_j;
 			break;
 		}
+
+
+
+		if (!(sum2<1e20))
+			printf("@ %f %f %f %f %f\n", sum2, nablaw.x,
+				nablaw.y, nablaw.z, xij.mode());
 	}
 }
 
@@ -934,9 +940,13 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 		* mass_i;
 
 	if (denom<EPSILON)
-		denom = 0.000001;
-	
-	data.alpha[index] = data.density[index]/ denom;
+		data.alpha[index] = 0;
+	else {
+		data.alpha[index] = data.density[index]/ denom;
+		if (!(data.alpha[index]<10000000))
+			printf("%f %f %f %f\n", data.alpha[index], denom,
+				sum1.x, sum2);
+	}
 }
 
 
@@ -960,15 +970,14 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			cfloat3 pos2 = data.pos[j];
 			cfloat3 xij = pos - pos2;
 			float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
-			if (d2 >= sr2)
-				continue;
-
 			float d = sqrt(d2);
-			cfloat3 nablaw = KernelGradient_Cubic(sr/2, xij);
 
 			if (j != index && data.type[j]==TYPE_FLUID)
 			{
-				//float nablaw = dParam.kspikydiff * c * c / d;
+				if (d2 >= sr2)
+					continue;
+				float c = sr - d;
+				float nablaw = dParam.kspikydiff * c * c / d;
 				
 				//pressure
 				//float pc = nablaw *data.mass[j]* (data.pressure[j]/data.density[j]/data.density[j]
@@ -976,7 +985,7 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 				//force += xij * pc * (-1);
 
 				//viscosity
-				float vc = dot(nablaw,xij) / (d2 + 0.01 * sr2*0.25)
+				float vc = nablaw * d2 / (d2 + 0.01 * sr2)
 					*data.mass[j]/data.density[j]*2* dParam.viscosity;
 				force += (data.vel[index]-data.vel[j])*vc;
 
@@ -987,8 +996,8 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 
 
 			//boundary collision
-			if (data.type[j]==TYPE_RIGID) {
-				/*float B=1;
+			if (data.type[j]==TYPE_RIGID && false) {
+				float B=1;
 
 				float q = d/sr;
 				if (q<0.66666) {
@@ -1007,15 +1016,18 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 
 				float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
 				force += xij * magnitude;
-*/
+
 				//artificial viscosity
 				cfloat3 vij = data.vel[index] - data.vel[j];
 				float xv = dot(vij, xij);
 				if (xv < 0) {
-					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /data.density[index];
-					float pi = visc * xv /(d2 + 0.01*sr2*0.25);
-					force += nablaw * pi * data.restDensity[index]*data.restDensity[j];
+					float c = sr - d;
+					float nablaw = dParam.kspikydiff * c * c / d;
+					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float pi = -visc * xv /(d2 + 0.01*sr2);
+					force += xij * pi * nablaw * data.mass[j] * (-1);
 				}
+
 			}
 		}
 	}
@@ -1087,8 +1099,8 @@ __device__ void PredictDensityCell_Multiphase(
 		if(data.type[j]==TYPE_FLUID)
 			emass_j = data.mass[i];
 		else if(data.type[j]==TYPE_RIGID)
-			emass_j = data.restDensity[j]*data.restDensity[i];
-			//emass_j = data.mass[i];
+			//emass_j = data.restDensity[j]*data.restDensity[i];
+			emass_j = data.mass[i];
 		else 
 			emass_j=0;
 		
@@ -1236,9 +1248,9 @@ __device__ void ApplyPressureCell_Multiphase(
 				+ data.pstiff[j]*data.mass[j]*data.mass[j]/data.density[j]);
 			break;
 		case TYPE_RIGID:
-			float emass_j = data.restDensity[j]*data.restDensity[i];
-			//float emass_j = data.mass[i];
-			force += nabla_w*mass_i*emass_j*data.pstiff[i]/data.density[i];
+			//float emass_j = data.restDensity[j]*data.restDensity[i];
+			float emass_j = data.mass[i];
+			force += nabla_w*mass_i*emass_j*data.pstiff[i]/data.density[i]*2;
 			break;
 		}
 			
