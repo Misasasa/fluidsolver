@@ -166,7 +166,9 @@ void SPHSolver::SolveMultiphaseSPH() {
 	PhaseDiffusion(device_data, num_particles);
 	
 	EffectiveMass(device_data, num_particles);
-
+	
+	DFAlpha_Multiphase(device_data, num_particles);
+	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
@@ -503,6 +505,14 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 					host_rest_density[pid] = pden;
 					for(int t=0;  t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
+					/*if((float)rand()/RAND_MAX>0.5){
+						host_vol_frac[pid*hParam.maxtypenum]=0.3;
+						host_vol_frac[pid*hParam.maxtypenum+1]=0.7;
+					}
+					else {
+						host_vol_frac[pid*hParam.maxtypenum]=0.7;
+						host_vol_frac[pid*hParam.maxtypenum+1]=0.3;
+					}*/
 
 					addcount += 1;
 				}

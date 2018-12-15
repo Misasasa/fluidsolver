@@ -1300,12 +1300,14 @@ __global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 
 	//update mass
 	data.mass[index] = rest_density * dParam.spacing*dParam.spacing*dParam.spacing;
-	data.effective_mass[index] = data.mass[index] / beta;
+	data.effective_mass[index] = data.mass[index] ;/// beta;
+	//if(index%100==0)
+	//	printf("%d %f\n",index, data.effective_mass[index]);
 
 	data.restDensity[index] = rest_density;
 	data.color[index].Set(vol_frac[0], vol_frac[1], vol_frac[2], 1);
-	if(vol_frac[0]<0.9 && vol_frac[1]<0.9)
-		data.color[index].w = 1;
+	//if(vol_frac[0]<0.9 && vol_frac[1]<0.9)
+	//	data.color[index].w = 1;
 }
 
 
@@ -1589,11 +1591,16 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	float* vol_frac = &data.vFrac[index*dParam.maxtypenum];
 	bool debug = false;
 	float normalize=0;
+	float tmp[2];
+	tmp[0]=vol_frac[0];
+	tmp[1]=vol_frac[1];
+
 	for (int k=0; k<dParam.maxtypenum; k++){
 		vol_frac[k] += vol_frac_change[k] * dParam.dt;
-		if(data.vFrac[index*dParam.maxtypenum+k] < -0.0001)
-			debug=true;
-		if(vol_frac[k]<0) vol_frac[k] = 0;
+		//if(!(data.vFrac[index*dParam.maxtypenum+k] > -EPSILON))
+		//	debug=true;
+		
+		if( !(vol_frac[k]>0)) vol_frac[k] = 0;
 		normalize += vol_frac[k];
 	}
 	for (int k=0; k<dParam.maxtypenum; k++)
