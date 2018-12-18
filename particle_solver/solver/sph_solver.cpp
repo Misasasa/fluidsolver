@@ -163,25 +163,25 @@ void SPHSolver::SetupMultiphaseSPH() {
 
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	PhaseDiffusion(device_data, num_particles);
+	//PhaseDiffusion(device_data, num_particles);
 	
-	EffectiveMass(device_data, num_particles);
+	//EffectiveMass(device_data, num_particles);
 	
-	DFAlpha_Multiphase(device_data, num_particles);
+	//DFAlpha_Multiphase(device_data, num_particles);
 	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 10, 0.1, false);
+	EnforceDensity_Multiphase(device_data, num_particles, 40, 1, true);
 
 	Sort();
 	
 	DFAlpha_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.1, false);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 40, 0.1, true);
 	
-	DriftVelocity(device_data, num_particles);
+	//DriftVelocity(device_data, num_particles);
 	
 	CopyFromDevice();
 
@@ -354,6 +354,7 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	//Multiphase
 	hParam.drift_dynamic_diffusion = reader.GetFloat("DriftDynamicDiffusion");
 	hParam.drift_turbulent_diffusion = reader.GetFloat("DriftTurbulentDiffusion");
+	hParam.surface_tension = reader.GetFloat("SurfaceTension");
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -483,8 +484,9 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 		int addcount=0;
 
 		float* vf    = fluid_volumes[i].volfrac;
+		int group = fluid_volumes[i].group;
 		float spacing = hParam.spacing;
-		float pden = 0; //hParam.restdensity;
+		float pden = 0;
 		for(int t=0; t<hParam.maxtypenum; t++)
 			pden += hParam.densArr[t] * vf[t];
 
@@ -496,23 +498,14 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 				for (float z=xmin.z; z<xmax.z; z+=spacing) {
 					int pid = AddDefaultParticle();
 					host_x[pid] = cfloat3(x, y, z);
-					//host_color[pid]=cfloat4(0.7, 0.75, 0.95, 1);
 					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
 					host_type[pid] = TYPE_FLUID;
-					host_group[pid] = 0;
+					host_group[pid] = group;
 					
 					host_mass[pid] = mp;
 					host_rest_density[pid] = pden;
 					for(int t=0;  t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
-					/*if((float)rand()/RAND_MAX>0.5){
-						host_vol_frac[pid*hParam.maxtypenum]=0.3;
-						host_vol_frac[pid*hParam.maxtypenum+1]=0.7;
-					}
-					else {
-						host_vol_frac[pid*hParam.maxtypenum]=0.7;
-						host_vol_frac[pid*hParam.maxtypenum+1]=0.3;
-					}*/
 
 					addcount += 1;
 				}

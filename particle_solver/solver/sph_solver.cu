@@ -314,13 +314,16 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
 
 }
 
+#include <thrust/device_vector.h>
+#include <thrust/reduce.h>
+
 void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 	int maxiter, float ethres, bool bDebug) {
 
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	float error;
+	float err_max;
 	int iter = 0;
 	//jacobi iteration
 	float* debug = new float[num_particles];
@@ -334,12 +337,12 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 		//get error
 
 		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
-		error = -9999;
+		err_max = 0;
 		for (int i=0; i<num_particles; i++)
-			error = debug[i]>error ? debug[i] : error;
+			err_max = debug[i]>err_max ? debug[i] : err_max;
 		
 		
-		if (error<ethres) break;
+		if (err_max<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 
@@ -348,7 +351,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
-	if (bDebug)	printf("%d density error: %f\n", iter, error);
+	if (bDebug)	printf("%d density error: %f\n", iter, err_max);
 	delete debug;
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
@@ -363,7 +366,7 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	float error;
+	float err_max;
 	int iter = 0;
 	//jacobi iteration
 	float* debug = new float[num_particles];
@@ -374,10 +377,10 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 		getLastCudaError("Kernel execution failed: compute divergence stiff");
 
 		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
-		error = 0;
+		err_max = 0;
 		for (int i=0; i<num_particles; i++)
-			error = debug[i]>error ? debug[i] : error;
-		if (error<ethres) break;
+			err_max = debug[i]>err_max ? debug[i] : err_max;
+		if (err_max<ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 		cudaThreadSynchronize();
@@ -385,7 +388,7 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
-	if (bDebug)	printf("%d divergence-free error: %f\n", iter, error);
+	if (bDebug)	printf("%d divergence-free error: %f\n", iter, err_max);
 	delete debug;
 
 	UpdateVelocities<<<num_blocks, num_threads>>>(data, num_particles);

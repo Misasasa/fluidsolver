@@ -18,6 +18,7 @@ struct fluidvol {
 	cfloat3 xmin;
 	cfloat3 xmax;
 	float volfrac[10];
+	int group;
 };
 
 struct FluidSrc {

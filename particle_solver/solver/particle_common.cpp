@@ -10,6 +10,8 @@ void loadFluidVolume(XMLElement* sceneEle, int typenum, vector<fluidvol>& fvs) {
 		reader.Use(fvele);
 		fv.xmin = reader.GetFloat3("VolMin");
 		fv.xmax = reader.GetFloat3("VolMax");
+		fv.group = reader.GetInt("Group");
+
 		reader.GetFloatN(fv.volfrac, typenum, "VolFrac");
 		fvs.push_back(fv);
 		fvele = fvele->NextSiblingElement();

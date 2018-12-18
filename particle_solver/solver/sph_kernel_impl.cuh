@@ -942,83 +942,105 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 
 
 __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
-	int index,
-	cfloat3 pos,
+	int i,
+	cfloat3 xi,
 	cfloat3& force,
 	SimData_SPH data)
 {
 	uint gridHash = calcGridHash(gridPos); 
-	if(gridHash==GRID_UNDEF) return;
+	if(gridHash==GRID_UNDEF) 
+		return;
+
 	uint startIndex = data.gridCellStart[gridHash];
-	float sr = dParam.smoothradius;
-	float sr2 = sr*sr;
-	if (startIndex != 0xffffffff) {
-		uint endIndex = data.gridCellEnd[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
 
-		for (uint j = startIndex; j < endIndex; j++)
+	uint endIndex = data.gridCellEnd[gridHash];
+	float h = dParam.smoothradius*0.5;
+	float h2 = h*h;
+	
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= h2*4 || d2<EPSILON)
+			continue;
+
+		float d = sqrt(d2);
+		cfloat3 nablaw = KernelGradient_Cubic(h, xij);
+
+		if (data.type[j]==TYPE_FLUID)
 		{
-			cfloat3 pos2 = data.pos[j];
-			cfloat3 xij = pos - pos2;
-			float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
-			if (d2 >= sr2)
-				continue;
-
-			float d = sqrt(d2);
-			cfloat3 nablaw = KernelGradient_Cubic(sr/2, xij);
-
-			if (j != index && data.type[j]==TYPE_FLUID)
-			{
-				//float nablaw = dParam.kspikydiff * c * c / d;
+			//float nablaw = dParam.kspikydiff * c * c / d;
 				
-				//pressure
-				//float pc = nablaw *data.mass[j]* (data.pressure[j]/data.density[j]/data.density[j]
-				//	+ data.pressure[index]/data.density[index]/data.density[index]);
-				//force += xij * pc * (-1);
+			//pressure
+			//float pc = nablaw *data.mass[j]* (data.pressure[j]/data.density[j]/data.density[j]
+			//	+ data.pressure[index]/data.density[index]/data.density[index]);
+			//force += xij * pc * (-1);
 
-				//viscosity
-				float vc = dot(nablaw,xij) / (d2 + 0.01 * sr2*0.25)
-					*data.mass[j]/data.density[j]*2* dParam.viscosity;
-				force += (data.vel[index]-data.vel[j])*vc;
+			//viscosity
+			float vc = dot(nablaw,xij) / (d2 + 0.01 * h2)
+				*data.mass[j]/data.density[j]*2* dParam.viscosity;
+			force += (data.vel[i]-data.vel[j])*vc;
 
-				//phase momentum diffusion
-				// to be finished
+			//phase momentum diffusion
+			// to be finished
 
+			//surface tension
+			//if (data.group[i]==data.group[j]) //both liquid
+			//{
+			//	float sf_kernel;
+			//	float support_radius = h*2;
+			//	float fac = 32.0f / 3.141593 / pow(support_radius,9);
+			//	if(d < h)
+			//		sf_kernel = 2*pow((support_radius-d)*d,3) - pow(support_radius,6)/64.0;
+			//	else if (d<support_radius)
+			//		sf_kernel = pow((support_radius-d)*d, 3);
+			//	else
+			//		sf_kernel = 0;
+			//	sf_kernel *= fac;
+
+			//	cfloat3 sf_tension = xij * dParam.surface_tension * data.mass[j] * sf_kernel / d *(-1);
+			//	force += sf_tension;
+			//	//printf("%f %f %f\n", sf_tension.x, sf_tension.y, sf_tension.z);
+			//}
+		}
+
+
+		//boundary collision
+		if (data.type[j]==TYPE_RIGID) {
+			/*float B=1;
+
+			float q = d/sr;
+			if (q<0.66666) {
+				B *= 0.66666;
 			}
+			else if (q<1) {
+				B *= 2*q - 1.5*q*q;
+			}
+			else if (q<2) {
+				B *= 0.5 * (2-q)*(2-q);
+			}
+			else
+				B = 0;
 
+			B *= 0.02 * 88.5*88.5 /d;
 
-			//boundary collision
-			if (data.type[j]==TYPE_RIGID) {
-				/*float B=1;
-
-				float q = d/sr;
-				if (q<0.66666) {
-					B *= 0.66666;
-				}
-				else if (q<1) {
-					B *= 2*q - 1.5*q*q;
-				}
-				else if (q<2) {
-					B *= 0.5 * (2-q)*(2-q);
-				}
-				else
-					B = 0;
-
-				B *= 0.02 * 88.5*88.5 /d;
-
-				float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
-				force += xij * magnitude;
+			float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
+			force += xij * magnitude;
 */
-				//artificial viscosity
-				cfloat3 vij = data.vel[index] - data.vel[j];
-				float xv = dot(vij, xij);
-				if (xv < 0) {
-					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /data.density[index];
-					float pi = visc * xv /(d2 + 0.01*sr2*0.25);
-					force += nablaw * pi * data.restDensity[index]*data.restDensity[j];
-				}
+			//artificial viscosity
+			cfloat3 vij = data.vel[i] - data.vel[j];
+			float xv = dot(vij, xij);
+			if (xv < 0) {
+				float visc = dParam.bvisc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
+				float pi = visc * xv /(d2 + 0.01*h2);
+				force += nablaw * pi * data.restDensity[i]*data.restDensity[j];
 			}
 		}
 	}
+	
 }
 
 __global__ void NonPressureForceKernel_Multiphase(
