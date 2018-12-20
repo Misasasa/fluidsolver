@@ -10,6 +10,7 @@ public:
 	vecf3 normal;
 	vecf volfrac;
 	veci type;
+	veci id;
 };
 
 class FluidGenerator {
@@ -28,6 +29,8 @@ public:
 			cfloat3 xmax = reader.GetFloat3("xmax");
 			cfloat3 normal = reader.GetFloat3("normal");
 			float spacing = reader.GetFloat("spacing");
+			int id = reader.GetInt("id");
+
 
 			for (float x=xmin.x; x<=xmax.x; x+=spacing)
 				for (float y=xmin.y; y<=xmax.y; y+=spacing)
@@ -35,6 +38,7 @@ public:
 						so->pos.push_back(cfloat3(x, y, z));
 						so->normal.push_back(normal);
 						so->type.push_back(TYPE_BOUNDARY);
+						so->id.push_back(id);
 					}
 		}
 		else if (strcmp(e->Name(), "Box")==0) {
@@ -43,16 +47,20 @@ public:
 			cfloat3 normal = reader.GetFloat3("normal");
 			float spacing = reader.GetFloat("spacing");
 			float thickness = reader.GetFloat("thickness");
+			int id = reader.GetInt("id");
+
 			//x-y
 			for (float x=xmin.x; x<=xmax.x; x+=spacing)
 				for (float y=xmin.y; y<=xmax.y; y+=spacing){
 						so->pos.push_back(cfloat3(x, y, xmin.z));
 						so->normal.push_back(cfloat3(0,0,1));
 						so->type.push_back(TYPE_BOUNDARY);
+						so->id.push_back(id);
 
 						so->pos.push_back(cfloat3(x, y, xmax.z));
 						so->normal.push_back(cfloat3(0, 0, -1));
 						so->type.push_back(TYPE_BOUNDARY);
+						so->id.push_back(id);
 				}
 			//y-z
 			for (float z=xmin.z; z<=xmax.z; z+=spacing)
@@ -60,10 +68,12 @@ public:
 					so->pos.push_back(cfloat3(xmin.x, y, z));
 					so->normal.push_back(cfloat3(1, 0, 0));
 					so->type.push_back(TYPE_BOUNDARY);
+					so->id.push_back(id);
 
 					so->pos.push_back(cfloat3(xmax.x, y, z));
 					so->normal.push_back(cfloat3(-1, 0, 0));
 					so->type.push_back(TYPE_BOUNDARY);
+					so->id.push_back(id);
 				}
 			//x-z
 			for (float x=xmin.x; x<=xmax.x; x+=spacing)
@@ -71,10 +81,12 @@ public:
 					so->pos.push_back(cfloat3(x, xmin.y, z));
 					so->normal.push_back(cfloat3(0, 1, 0));
 					so->type.push_back(TYPE_BOUNDARY);
+					so->id.push_back(id);
 
 					so->pos.push_back(cfloat3(x, xmax.y, z));
 					so->normal.push_back(cfloat3(0, -1, 0));
 					so->type.push_back(TYPE_BOUNDARY);
+					so->id.push_back(id);
 				}
 					
 		}

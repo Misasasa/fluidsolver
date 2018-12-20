@@ -284,11 +284,11 @@ void correctDivergenceError(SimData_SPH data,
 //
 //==================================================
 
-void DFAlpha_Multiphase(SimData_SPH data, int num_particles) {
+void DFSPHFactor_Multiphase(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	DFAlphaKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
+	DFSPHFactorKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute df alpha multiphase");
 
@@ -448,5 +448,13 @@ void RigidParticleVolume(SimData_SPH data, int num_particles) {
 	getLastCudaError("Kernel execution failed: rigid particle volume");
 }
 
+void MoveConstraintBoxAway(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	MoveConstraintBoxKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: move constraint box");
+}
 
 };

@@ -13,16 +13,24 @@
         <spacing> 0.005 </spacing>
     </Box-->
 
-    <Box>
+    <!--Box>
         <xmin> -0.35, 0.005, -0.35 </xmin>
         <xmax>  0.35, 0.7, 0.35 </xmax>
         <spacing> 0.005 </spacing>
+    </Box-->
+
+    <Box>
+        <xmin> -0.155, -0.01, 0 </xmin>
+        <xmax>  0.155, 0.705, 0.155 </xmax>
+        <spacing> 0.005 </spacing>
+        <id> 0 </id>
     </Box>
 
     <!--Box>
-        <xmin> -0.155, -0.01, -0.155 </xmin>
-        <xmax>  0.155, 0.705, 0.155 </xmax>
+        <xmin> -0.155, -0.01, 0 </xmin>
+        <xmax>  -0.04, 0.705, 0.155 </xmax>
         <spacing> 0.005 </spacing>
+        <id> 1 </id>
     </Box-->
 
 </Boundary>

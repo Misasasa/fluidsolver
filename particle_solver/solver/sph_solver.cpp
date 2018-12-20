@@ -157,31 +157,31 @@ void SPHSolver::SetupMultiphaseSPH() {
 	Sort();
 
 	EffectiveMass(device_data, num_particles);
-	DFAlpha_Multiphase(device_data, num_particles);
+	DFSPHFactor_Multiphase(device_data, num_particles);
 	RigidParticleVolume(device_data, num_particles);
 }
 
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	//PhaseDiffusion(device_data, num_particles);
+	PhaseDiffusion(device_data, num_particles);
 	
-	//EffectiveMass(device_data, num_particles);
+	EffectiveMass(device_data, num_particles);
 	
-	//DFAlpha_Multiphase(device_data, num_particles);
+	DFSPHFactor_Multiphase(device_data, num_particles);
 	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 40, 1, true);
+	EnforceDensity_Multiphase(device_data, num_particles, 5, 1, false);
 
 	Sort();
 	
-	DFAlpha_Multiphase(device_data, num_particles);
+	DFSPHFactor_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 40, 0.1, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.1, false);
 	
-	//DriftVelocity(device_data, num_particles);
+	DriftVelocity(device_data, num_particles);
 	
 	CopyFromDevice();
 
@@ -288,7 +288,13 @@ void SPHSolver::HandleKeyEvent(char key) {
 		else
 			printf("Stop emitting particles.\n");
 		break;
+	
+	case 'm':
+		MoveConstraintBoxAway(device_data, num_particles);
+		RigidParticleVolume(device_data, num_particles);
+		break;
 	}
+
 }
 
 
@@ -522,11 +528,11 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0.0);
+		host_color[pid] = cfloat4(1,1,1,0);
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
-		host_group[pid] = 0;
+		host_group[pid] = po->id[i];
 	}
 }
 
@@ -586,14 +592,15 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.indexTable, maxpnum * sizeof(int));
 	
 	//DFSPH
-	cudaMalloc(&device_data.alpha, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.DF_factor, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.v_star, maxpnum * sizeof(cfloat3));
-	cudaMalloc(&device_data.x_star, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&device_data.pstiff, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.sortedV_star, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&device_data.error, maxpnum * sizeof(float));
-	cudaMalloc(&device_data.pstiff_sum, maxpnum * sizeof(float));
-	cudaMalloc(&device_data.sortedPstiff_sum, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.rho_stiff, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.sorted_rho_stiff, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.div_stiff, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.sorted_div_stiff, maxpnum * sizeof(float));
 
 	//Multiphase
 	int num_pt = maxpnum*hParam.maxtypenum;

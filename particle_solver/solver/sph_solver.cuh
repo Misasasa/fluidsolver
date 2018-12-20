@@ -97,14 +97,15 @@ struct SimData_SPH {
 	int* indexTable;
 
 	// DFSPH
-	float* alpha;
+	float* DF_factor;
 	cfloat3* v_star; //predicted vel
-	cfloat3* x_star; //predicted pos
 	float* pstiff;
 	cfloat3* sortedV_star;
 	float* error;
-	float* pstiff_sum;
-	float* sortedPstiff_sum;
+	float* rho_stiff;
+	float* sorted_rho_stiff;
+	float* div_stiff;
+	float* sorted_div_stiff;
 
 	// Multiphase Fluid
 	float* vFrac;
@@ -127,14 +128,14 @@ struct SimData_SPH {
 	//edgeConsVar* edgeConsVar;
 
 	//triangle data
-	objtriangle* triangles;
+	/*objtriangle* triangles;
 	float* facetVol;
 	float* facetArea;
 	int*   facetObjId;
 	cfloat3* baryCenter;
 	int*	 baryCenterTriangleId;
 	cfloat3* sortedBaryCenter;
-	int*	 sortedBaryCenterTriangleId;
+	int*	 sortedBaryCenterTriangleId;*/
 
 	//Sort
 	int* particleHash;   //cellid of each particle
@@ -143,10 +144,10 @@ struct SimData_SPH {
 	int* gridCellEnd;  //cell end
 	int* gridCellCollisionFlag;
 
-	int* baryCenterHash;
+	/*int* baryCenterHash;
 	int* baryCenterIndex;
 	int* gridCellStartBaryCenter;
-	int* gridCellEndBaryCenter;
+	int* gridCellEndBaryCenter;*/
 
 	//Anisotropic Kernel
 	cfloat3* avgpos;
@@ -228,7 +229,7 @@ void correctDivergenceError(SimData_SPH data,
 			Multiphase SPH
 
 ****************************************/
-void DFAlpha_Multiphase(SimData_SPH data, int num_particles);
+void DFSPHFactor_Multiphase(SimData_SPH data, int num_particles);
 void NonPressureForce_Multiphase(SimData_SPH data, int num_particles);
 void EnforceDensity_Multiphase(SimData_SPH data,
 	int num_particles,
@@ -247,6 +248,7 @@ void DriftVelocity(SimData_SPH data, int num_particles);
 void PhaseDiffusion(SimData_SPH data, int num_particles);
 void RigidParticleVolume(SimData_SPH data, int num_particles);
 
+void MoveConstraintBoxAway(SimData_SPH data, int num_particles);
 
 };
 

@@ -96,14 +96,14 @@ __global__ void calcHashD(
 	cfloat3 x = Pos[i];
 	uint hash;
 
-	if (x.x>dParam.gridxmax.x-EPSILON ||
-		x.x<dParam.gridxmin.x+EPSILON ||
-		x.y>dParam.gridxmax.y-EPSILON ||
-		x.y<dParam.gridxmin.y+EPSILON ||
-		x.z>dParam.gridxmax.z-EPSILON ||
-		x.z<dParam.gridxmin.z+EPSILON) {
+	if (!(x.x<dParam.gridxmax.x-EPSILON &&
+		x.x>dParam.gridxmin.x+EPSILON &&
+		x.y<dParam.gridxmax.y-EPSILON &&
+		x.y>dParam.gridxmin.y+EPSILON &&
+		x.z<dParam.gridxmax.z-EPSILON &&
+		x.z>dParam.gridxmin.z+EPSILON)) {
 		hash = GRID_UNDEF;
-		printf("bad particle position\n");
+		//printf("bad particle position\n");
 	}
 	else {
 		cint3 gridPos = calcGridPos(x);
@@ -495,7 +495,7 @@ __global__ void computeDensityAlpha_kernel(SimData_SPH data, int num_particles) 
 	float denom = dot(mwij3, mwij3) + mwij;
 	if(denom<0.000001)
 		denom = 0.000001;//clamp for stability
-	data.alpha[index] = data.density[index] / denom;
+	data.DF_factor[index] = data.density[index] / denom;
 
 }
 
@@ -679,7 +679,7 @@ __global__ void solveDivergenceStiff(SimData_SPH data, int num_particles) {
 			}
 	if(densChange < 0 ) densChange = 0;
 	data.error[index] = densChange / data.restDensity[index];
-	data.pstiff[index] = densChange/ dParam.dt * data.alpha[index];
+	data.pstiff[index] = densChange/ dParam.dt * data.DF_factor[index];
 }
 
 
@@ -754,7 +754,7 @@ __global__ void solveDensityStiff(SimData_SPH data, int num_particles) {
 					data);
 			}
 	
-	data.pstiff[index] = (density - data.restDensity[index])*data.alpha[index]
+	data.pstiff[index] = (density - data.restDensity[index])*data.DF_factor[index]
 		/dParam.dt/dParam.dt;
 	data.error[index] = density - data.restDensity[index];
 	if(data.pstiff[index]<0){
@@ -855,7 +855,7 @@ __global__ void UpdateVelocities(SimData_SPH data, int num_particles) {
 
 *****************************************/
 
-__device__ void DFAlphaMultiphaseCell(cint3 gridPos,
+__device__ void DFSPHFactorCell_Multiphase(cint3 gridPos,
 	int i,
 	cfloat3 xi,
 	float& density,
@@ -897,13 +897,14 @@ __device__ void DFAlphaMultiphaseCell(cint3 gridPos,
 			//emass_j = data.mass[i];
 			nablaw *= emass_j;
 			sum1 += nablaw;
+			sum2 += dot(nablaw, nablaw) / emass_j;
 			density += Kernel_Cubic(sr/2, xij)*emass_j;
 			break;
 		}
 	}
 }
 
-__global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
+__global__ void DFSPHFactorKernel_Multiphase(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	if(data.type[index]!=TYPE_FLUID) return;
@@ -919,7 +920,7 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 		for (int y=-1; y<=1; y++)
 			for (int x=-1; x<=1; x++) {
 				cint3 nPos = gridPos + cint3(x, y, z);
-				DFAlphaMultiphaseCell(nPos,
+				DFSPHFactorCell_Multiphase(nPos,
 					index,
 					pos,
 					density,
@@ -936,7 +937,7 @@ __global__ void DFAlphaKernel_Multiphase(SimData_SPH data, int num_particles) {
 	if (denom<EPSILON)
 		denom = 0.000001;
 	
-	data.alpha[index] = data.density[index]/ denom;
+	data.DF_factor[index] = data.density[index]/ denom;
 }
 
 
@@ -969,6 +970,7 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 
 		float d = sqrt(d2);
 		cfloat3 nablaw = KernelGradient_Cubic(h, xij);
+		cfloat3 vij =  data.vel[i]-data.vel[j];
 
 		if (data.type[j]==TYPE_FLUID)
 		{
@@ -979,32 +981,42 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			//	+ data.pressure[index]/data.density[index]/data.density[index]);
 			//force += xij * pc * (-1);
 
-			//viscosity
-			float vc = dot(nablaw,xij) / (d2 + 0.01 * h2)
+
+
+
+			//viscosity [becker 07]
+
+			/*float vc = dot(nablaw,xij) / (d2 + 0.01 * h2)
 				*data.mass[j]/data.density[j]*2* dParam.viscosity;
-			force += (data.vel[i]-data.vel[j])*vc;
+			force += (data.vel[i]-data.vel[j])*vc;*/
+
+			//xsph artificial viscosity
+
+			force += vij * dParam.viscosity * data.mass[j]/data.density[j]*(-1)*Kernel_Cubic(h,xij)/dParam.dt;
+			
+
 
 			//phase momentum diffusion
 			// to be finished
 
 			//surface tension
-			//if (data.group[i]==data.group[j]) //both liquid
-			//{
-			//	float sf_kernel;
-			//	float support_radius = h*2;
-			//	float fac = 32.0f / 3.141593 / pow(support_radius,9);
-			//	if(d < h)
-			//		sf_kernel = 2*pow((support_radius-d)*d,3) - pow(support_radius,6)/64.0;
-			//	else if (d<support_radius)
-			//		sf_kernel = pow((support_radius-d)*d, 3);
-			//	else
-			//		sf_kernel = 0;
-			//	sf_kernel *= fac;
+			if (data.group[i]==data.group[j]) //both liquid
+			{
+				float sf_kernel;
+				float support_radius = h*2;
+				float fac = 32.0f / 3.141593 / pow(support_radius,9);
+				if(d < h)
+					sf_kernel = 2*pow((support_radius-d)*d,3) - pow(support_radius,6)/64.0;
+				else if (d<support_radius)
+					sf_kernel = pow((support_radius-d)*d, 3);
+				else
+					sf_kernel = 0;
+				sf_kernel *= fac;
 
-			//	cfloat3 sf_tension = xij * dParam.surface_tension * data.mass[j] * sf_kernel / d *(-1);
-			//	force += sf_tension;
-			//	//printf("%f %f %f\n", sf_tension.x, sf_tension.y, sf_tension.z);
-			//}
+				cfloat3 sf_tension = xij * dParam.surface_tension * data.mass[j] * sf_kernel / d *(-1);
+				force += sf_tension;
+				//printf("%f %f %f\n", sf_tension.x, sf_tension.y, sf_tension.z);
+			}
 		}
 
 
@@ -1120,8 +1132,10 @@ __device__ void PredictDensityCell_Multiphase(
 }
 
 
-__global__ void DensityStiff_Multiphase(SimData_SPH data, int num_particles) {
-
+__global__ void DensityStiff_Multiphase(
+	SimData_SPH data, 
+	int num_particles)
+{
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	if (data.type[index]!=TYPE_FLUID) {
@@ -1144,7 +1158,7 @@ __global__ void DensityStiff_Multiphase(SimData_SPH data, int num_particles) {
 					data);
 			}
 
-	data.pstiff[index] = (density - data.restDensity[index])*data.alpha[index]
+	data.pstiff[index] = (density - data.restDensity[index])*data.DF_factor[index]
 		/dParam.dt/dParam.dt;
 	data.error[index] = density - data.restDensity[index];
 	//if(data.error[index])
@@ -1155,6 +1169,8 @@ __global__ void DensityStiff_Multiphase(SimData_SPH data, int num_particles) {
 		data.error[index] = 0;
 	}
 }
+
+
 
 __device__ void DensityChangeCell_Multiphase(
 	cint3 gridPos,
@@ -1182,17 +1198,20 @@ __device__ void DensityChangeCell_Multiphase(
 
 		if (d2 >= sr2 || d2<EPSILON) continue;
 
-		float emass_j;
-		if (data.type[j]==TYPE_FLUID) emass_j = data.mass[i];
-		else if (data.type[j]==TYPE_RIGID) emass_j = data.restDensity[j]*data.restDensity[i];
-		else emass_j=0;
+		float mass_j;
+		if (data.type[j]==TYPE_FLUID) mass_j = data.mass[i];
+		else if (data.type[j]==TYPE_RIGID) mass_j = data.restDensity[j]*data.restDensity[i];
+		else mass_j=0;
 
-		cfloat3 nwij = KernelGradient_Cubic(sr/2, xij) * emass_j;
+		cfloat3 nwij = KernelGradient_Cubic(sr/2, xij) * mass_j;
 		densChange += dot(vij, nwij);
 	}
 }
 
-__global__ void DivergenceFreeStiff_Multiphase(SimData_SPH data, int num_particles) {
+__global__ void DivergenceFreeStiff_Multiphase(
+	SimData_SPH data, 
+	int num_particles) 
+{
 
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
@@ -1218,8 +1237,11 @@ __global__ void DivergenceFreeStiff_Multiphase(SimData_SPH data, int num_particl
 	if (densChange < 0) densChange = 0;
 	if (data.density[index]<data.restDensity[index]) densChange = 0;
 	data.error[index] = densChange / data.restDensity[index];
-	data.pstiff[index] = densChange/ dParam.dt * data.alpha[index];
+	data.pstiff[index] = densChange/ dParam.dt * data.DF_factor[index];
 }
+
+
+
 
 __device__ void ApplyPressureCell_Multiphase(
 	cint3 gridPos,
@@ -1238,18 +1260,15 @@ __device__ void ApplyPressureCell_Multiphase(
 		return;
 
 	uint endIndex = data.gridCellEnd[gridHash];
-	//printf("%d %d\n", startIndex, endIndex);
-
+	
 	for (uint j = startIndex; j < endIndex; j++)
 	{
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
 
 		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
-
 		if (d2 >= sr2 || d2<EPSILON) continue;
 
-		//cfloat3 nabla_w = KernelGradient_Spiky(sr, xij);
 		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		
 		switch (data.type[j]) {
@@ -1258,9 +1277,10 @@ __device__ void ApplyPressureCell_Multiphase(
 				+ data.pstiff[j]*data.mass[j]*data.mass[j]/data.density[j]);
 			break;
 		case TYPE_RIGID:
-			float emass_j = data.restDensity[j]*data.restDensity[i];
-			//float emass_j = data.mass[i];
-			force += nabla_w*mass_i*emass_j*data.pstiff[i]/data.density[i];
+			float mass_j = data.restDensity[j]*data.restDensity[i];
+			force += nabla_w*data.pstiff[i]*mass_i*(mass_i+mass_j)/data.density[i];
+			//force += nabla_w*data.pstiff[i]*mass_i*mass_j/data.density[i];
+			
 			break;
 		}
 			
@@ -1291,6 +1311,11 @@ __global__ void ApplyPressureKernel_Multiphase(SimData_SPH data, int num_particl
 			}
 	data.v_star[index] += force * dParam.dt *(-1) / data.effective_mass[index];
 }
+
+
+
+
+
 
 /* compute effective mass used in divergence-free solver,
 the formula goes like:
@@ -1680,6 +1705,14 @@ __global__ void RigidParticleVolumeKernel(SimData_SPH data, int num_particles) {
 					sum_wij);
 			}
 	data.restDensity[index] = 1 / sum_wij; //effective volume
+}
+
+__global__ void MoveConstraintBoxKernel(SimData_SPH data, int num_particles) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]!=TYPE_RIGID || data.group[index]!=1) return;
+
+	data.pos[index] = cfloat3(0.39,0.39,0.39);
 }
 
 
