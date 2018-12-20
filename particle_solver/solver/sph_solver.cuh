@@ -17,10 +17,6 @@ struct SimParam_SPH {
 
 	int maxpnum;
 	int maxtypenum;
-	int maxconstraintnum;
-	int maxtrianglenum;
-	int maxobjnum;
-
 
 	float dx;
 	cfloat3 gridxmin;
@@ -30,7 +26,6 @@ struct SimParam_SPH {
 	cfloat3 gravity;
 	float dt;
 
-	float mass;
 	float viscosity;
 	float restdensity;
 
@@ -235,13 +230,15 @@ void EnforceDensity_Multiphase(SimData_SPH data,
 	int num_particles,
 	int maxiter,
 	float ethres,
-	bool bDebug
+	bool bDebug,
+	bool warm_start
 );
 void EnforceDivergenceFree_Multiphase(SimData_SPH data,
 	int num_particles,
 	int maxiter,
 	float ethres,
-	bool bDebug
+	bool bDebug,
+	bool warm_start
 );
 void EffectiveMass(SimData_SPH data, int num_particles);
 void DriftVelocity(SimData_SPH data, int num_particles);

@@ -105,7 +105,7 @@
 
 	<SurfaceTension> 0.1 </SurfaceTension>
 	
-	<DensityArray> 500,1000,1000 </DensityArray>
+	<DensityArray> 1000,1000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<!--Vol>
@@ -116,9 +116,9 @@
 	</Vol-->
 
 	<Vol>
-		<VolMin>	-0.145,  0.015,  0.01	</VolMin>
-		<VolMax>	-0.05,  0.15,  0.14 </VolMax>
-		<VolFrac>   0.5,  0.5,  0 </VolFrac>
+		<VolMin>	-0.135,  0.015,  0.01	</VolMin>
+		<VolMax>	-0.05,  0.2,  0.12 </VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
@@ -178,7 +178,7 @@
 
 
 <BoundInfo id="1">
-	<Viscosity>	0.0005		</Viscosity>
+	<Viscosity>	1		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>
 	<Mass>		0.00010543	</Mass>
 	<BoundStiff>	5000	</BoundStiff>

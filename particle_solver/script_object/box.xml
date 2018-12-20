@@ -21,8 +21,8 @@
 
     <Box>
         <xmin> -0.155, -0.01, 0 </xmin>
-        <xmax>  0.155, 0.705, 0.155 </xmax>
-        <spacing> 0.005 </spacing>
+        <xmax>  0.355, 0.705, 0.155 </xmax>
+        <spacing> 0.004 </spacing>
         <id> 0 </id>
     </Box>
 

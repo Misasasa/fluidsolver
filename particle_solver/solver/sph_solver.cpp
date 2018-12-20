@@ -98,8 +98,10 @@ void SPHSolver::Sort() {
 	cudaMemcpy(device_data.restDensity, device_data.sortedRestDensity, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.vFrac,		device_data.sortedVFrac,	num_particles * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.effective_density, device_data.sorted_effective_density, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
+	//cudaMemcpy(device_data.effective_density, device_data.sorted_effective_density, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 
+	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice );
+	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
@@ -163,25 +165,25 @@ void SPHSolver::SetupMultiphaseSPH() {
 
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	PhaseDiffusion(device_data, num_particles);
+	//PhaseDiffusion(device_data, num_particles);
 	
-	EffectiveMass(device_data, num_particles);
+	//EffectiveMass(device_data, num_particles);
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
 	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 5, 1, false);
+	EnforceDensity_Multiphase(device_data, num_particles, 5, 1, false,  true);
 
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.1, false);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 0, 0.5, false, true);
 	
-	DriftVelocity(device_data, num_particles);
+	//DriftVelocity(device_data, num_particles);
 	
 	CopyFromDevice();
 
@@ -528,7 +530,7 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0);
+		host_color[pid] = cfloat4(1,1,1,0.2);
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;

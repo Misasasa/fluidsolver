@@ -78,14 +78,6 @@ void reorderDataAndFindCellStart(
 }
 
 
-
-void applyXSPH(SimData_SPH data, int num_particles) {
-
-
-}
-
-
-
 void computePressure(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
@@ -318,17 +310,33 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
 #include <thrust/reduce.h>
 
 void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
-	int maxiter, float ethres, bool bDebug) {
+	int maxiter, 
+	float ethres, 
+	bool bDebug,
+	bool warm_start)
+{
 
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	float err_max;
 	int iter = 0;
-	//jacobi iteration
 	float* debug = new float[num_particles];
 
-	while (true && iter<maxiter) {
+	
+	if (warm_start) 
+	{
+		EnforceDensityWarmStart <<< num_blocks, num_threads>>>(data, num_particles);
+		cudaThreadSynchronize();
+		getLastCudaError("Kernel execution failed: solve density stiff warm start");
+	}
+
+	cudaMemset(data.div_stiff, 0, sizeof(float)*num_particles);
+
+
+
+	while (true && iter<maxiter) 
+	{
 		DensityStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 
 		cudaThreadSynchronize();
@@ -361,17 +369,32 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 }
 
 void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
-	int maxiter, float ethres, bool bDebug) {
+	int maxiter, 
+	float ethres, 
+	bool bDebug,
+	bool warm_start)
+{
 
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	float err_max;
 	int iter = 0;
-	//jacobi iteration
 	float* debug = new float[num_particles];
 
-	while (true && iter<maxiter) {
+	if (warm_start) 
+	{
+		EnforceDivergenceWarmStart <<< num_blocks, num_threads>>>(data, num_particles);
+		cudaThreadSynchronize();
+		getLastCudaError("Kernel execution failed: solve density stiff warm start");
+	}
+
+	cudaMemset(data.rho_stiff, 0, sizeof(float)*num_particles);
+
+
+
+	while (true && iter<maxiter) 
+	{
 		DivergenceFreeStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: compute divergence stiff");
