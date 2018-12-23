@@ -721,7 +721,7 @@ void SolverGUI::render() {
 		
 		if (bTakeSnapshot) {
 			frametimer += solver->dt;
-			if (frametimer>1/60.0) {
+			if (frametimer>1/120.0) {
 				takeSnapshot();
 				frametimer = 0;
 			}
@@ -729,6 +729,9 @@ void SolverGUI::render() {
 			
 		frameNo++;
 	}
+
+	//if(frameNo==4000)
+	//	bPause = true;
 	
 	MoveCamera();
 

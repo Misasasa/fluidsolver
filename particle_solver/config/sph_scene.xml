@@ -5,7 +5,7 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 2 </SceneId>
+	<SceneId> 3 </SceneId>
 
 </Fluid>
 
@@ -137,40 +137,62 @@
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 2 </SmoothRatio>
 	
-	<Viscosity>	 0.0005	</Viscosity>
+	<Viscosity>	 0.05	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 
-	<DensityArray> 1000,2000,2000 </DensityArray>
+	<DensityArray> 100,1000,2000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
-	<Vol>
-		<VolMin>	-0.241,  0.017,  -0.141	</VolMin>
-		<VolMax>	0.241,  0.11,  0.141	</VolMax>
+	<!--Vol>
+		<VolMin>	-0.141,  0.017,  -0.141	</VolMin>
+		<VolMax>	0.141,  0.11,  0.141	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
 	<Vol>
-		<VolMin>	-0.241,  0.115,  -0.141	</VolMin>
-		<VolMax>	0.241,  0.19,  0.141	</VolMax>
+		<VolMin>	-0.141,  0.115,  -0.141	</VolMin>
+		<VolMax>	0.141,  0.19,  0.141	</VolMax>
+		<VolFrac>   0,  1,  0 </VolFrac>
+		<Group> 1 </Group>
+	</Vol-->
+
+
+
+	<Vol>
+		<VolMin>	-0.144,  0.0,  0.006	</VolMin>
+		<VolMax>	-0.003,  0.244,  0.144	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+		<Group> 0 </Group>
+	</Vol>
+
+	<Vol>
+		<VolMin>	0.003,  0.0,  0.006	</VolMin>
+		<VolMax>	0.144,  0.244,  0.144	</VolMax>
 		<VolFrac>   0,  1,  0 </VolFrac>
 		<Group> 1 </Group>
 	</Vol>
 
+
+
 	<!--Vol>
-		<VolMin>	0.01,  0.017,  0.01	</VolMin>
-		<VolMax>	0.07,  0.35,  0.06	</VolMax>
+		<VolMin>	-0.144,  0.0,  0.006	</VolMin>
+		<VolMax>	0.144,  0.120,  0.144	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+		<Group> 0 </Group>
+	</Vol>
+
+	<Vol>
+		<VolMin>	-0.144,  0.126,  0.006	</VolMin>
+		<VolMax>	0.144,  0.244,  0.144	</VolMax>
 		<VolFrac>   0,  1,  0 </VolFrac>
+		<Group> 1 </Group>
 	</Vol-->
 
-	<!--Vol>
-		<VolMin>	-0.03,  0.017,  -0.06	</VolMin>
-		<VolMax>	0.03,  0.35,  -0.01	</VolMax>
-		<VolFrac>   0,  0,  1 </VolFrac>
-	</Vol-->
+	
 
-	<SurfaceTension> 0 </SurfaceTension>
+	<SurfaceTension> 1000 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
 	<DriftTurbulentDiffusion> -0.000 </DriftTurbulentDiffusion>
@@ -178,7 +200,7 @@
 
 
 <BoundInfo id="1">
-	<Viscosity>	1		</Viscosity>
+	<Viscosity>	 1		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>
 	<Mass>		0.00010543	</Mass>
 	<BoundStiff>	5000	</BoundStiff>

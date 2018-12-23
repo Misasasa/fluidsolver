@@ -111,6 +111,7 @@ struct SimData_SPH {
 	float* effective_density;
 	float* phase_diffusion_lambda;
 	float* vol_frac_change;
+	float* spatial_status;
 
 	float* sortedVFrac;
 	float* sortedRestDensity;
@@ -246,7 +247,7 @@ void PhaseDiffusion(SimData_SPH data, int num_particles);
 void RigidParticleVolume(SimData_SPH data, int num_particles);
 
 void MoveConstraintBoxAway(SimData_SPH data, int num_particles);
-
+void DetectDispersedParticles(SimData_SPH data, int num_particles);
 };
 
 

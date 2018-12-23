@@ -346,11 +346,16 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		err_max = 0;
+		float err_avg=0;
 		for (int i=0; i<num_particles; i++)
+		{
 			err_max = debug[i]>err_max ? debug[i] : err_max;
+			err_avg += debug[i];
+		}
+		err_avg /= 38976.0;
 		
-		
-		if (err_max<ethres) break;
+		if (bDebug)	printf("%d density error: %f %f\n", iter, err_max, err_avg);
+		if (err_avg < ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
 
@@ -359,7 +364,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
-	if (bDebug)	printf("%d density error: %f\n", iter, err_max);
+	
 	delete debug;
 
 	updatePosition <<<num_blocks, num_threads>>>(data, num_particles);
@@ -478,6 +483,16 @@ void MoveConstraintBoxAway(SimData_SPH data, int num_particles) {
 	MoveConstraintBoxKernel <<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: move constraint box");
+}
+
+void DetectDispersedParticles(SimData_SPH data, int num_particles)
+{
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	DetectDispersedParticlesKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: detect dispersed particles");
 }
 
 };

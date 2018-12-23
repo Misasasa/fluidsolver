@@ -169,19 +169,22 @@ void SPHSolver::SolveMultiphaseSPH() {
 	
 	//EffectiveMass(device_data, num_particles);
 	
+
+	DetectDispersedParticles(device_data, num_particles);
+
 	DFSPHFactor_Multiphase(device_data, num_particles);
 	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
 	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 5, 1, false,  true);
+	EnforceDensity_Multiphase(device_data, num_particles, 10, 0.001, false,  true);
 
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
 
 	//correct divergence + velocity update
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 0, 0.5, false, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
 	
 	//DriftVelocity(device_data, num_particles);
 	
@@ -530,7 +533,7 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0.2);
+		host_color[pid] = cfloat4(1,1,1,0.0);
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
@@ -614,6 +617,7 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
+	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
 
 	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
