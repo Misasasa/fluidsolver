@@ -43,6 +43,7 @@ public:
 	int num_fluid_particles;
 	int num_grid_cells;
 	int frame_count;
+	int dump_count;
 	int case_id;
 	int run_mode;
 
@@ -93,6 +94,7 @@ public:
 	
 	void DumpSimulationDataText();
 	void LoadSimulationDataText(char* filepath, cmat4& materialMat);
+	void DumpRenderData();
 
 	void SetupFluidScene();
 };

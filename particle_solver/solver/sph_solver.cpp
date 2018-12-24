@@ -59,13 +59,14 @@ void SPHSolver::Copy2Device(int begin, int  end) {
 
 
 void SPHSolver::CopyFromDevice() {
-	cudaMemcpy(host_x.data(),		device_data.pos, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_x.data(),		device_data.pos, num_particles * sizeof(cfloat3), cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_color.data(),	device_data.color, num_particles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
 }
 
 void SPHSolver::CopyFromDeviceFull() {
 	cudaMemcpy(host_x.data(), device_data.pos, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_color.data(), device_data.color, num_particles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
+	
 
 	cudaMemcpy(host_v.data(),		device_data.vel, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_type.data(), device_data.type, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
@@ -73,7 +74,7 @@ void SPHSolver::CopyFromDeviceFull() {
 	cudaMemcpy(host_mass.data(),	device_data.mass, sizeof(float)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_unique_id.data(), device_data.uniqueId, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_id_table.data(), device_data.indexTable, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
-	//multiphase
+	
 	cudaMemcpy(host_vol_frac.data(), device_data.vFrac, sizeof(float)*num_particles*hParam.maxtypenum, cudaMemcpyDeviceToHost);
 	cudaMemcpy(host_v_star.data(), device_data.v_star, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
 }
@@ -219,9 +220,9 @@ void SPHSolver::Step() {
 }
 
 void SPHSolver::DumpSimulationDataText() {
-	printf("Dumping simulation data text at frame %d\n", frame_count);
+	printf("Dumping simulation data at frame %d\n", frame_count);
 	char filepath[1000];
-	sprintf(filepath, ".\\dump\\%03d.dat", frame_count);
+	sprintf(filepath, ".\\dump\\%03d.txt", frame_count);
 	
 	FILE* fp = fopen(filepath, "w+");
 	if (fp == NULL) {
@@ -243,6 +244,34 @@ void SPHSolver::DumpSimulationDataText() {
 		
 		for(int k=0;k<hParam.maxtypenum;k++)
 			fprintf(fp, "%f ", host_vol_frac[i*hParam.maxtypenum+k]);
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+}
+
+void SPHSolver::DumpRenderData() {
+	printf("Dumping rendering data at frame %d\n", frame_count);
+	char filepath[1000];
+	sprintf(filepath, "..\\particle_data\\%03d.txt", dump_count++);
+
+	FILE* fp = fopen(filepath, "w+");
+	if (fp == NULL) {
+		printf("error opening file\n"); return;
+	}
+
+	CopyFromDeviceFull();
+
+	// Particle Data
+	fprintf(fp, "frame %d\n", dump_count);
+	int output_count=0;
+	//fprintf(fp, "%d\n", num_particles);
+	for (int i=0; i<num_particles; i++) {
+
+		if(host_type[i]!=TYPE_FLUID)
+			continue;
+
+		fprintf(fp, "%d %f %f %f ", output_count++, host_x[i].x, host_x[i].y, host_x[i].z);
+		fprintf(fp, "%f %f %f ",host_color[i].x, host_color[i].y, host_color[i].z);
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
@@ -283,9 +312,9 @@ void SPHSolver::HandleKeyEvent(char key) {
 	case 'b':
 		DumpSimulationDataText();
 		break;
-	//case 'r':
-	//	dumpRenderingData();
-	//	break;
+	case 'r':
+		DumpRenderData();
+		break;
 	case 'e':
 		emit_particle_on = !emit_particle_on;
 		if (emit_particle_on)
@@ -382,6 +411,7 @@ void SPHSolver::ParseParam(char* xmlpath) {
 
 void SPHSolver::LoadParam(char* xmlpath) {
 	frame_count = 0;
+	dump_count = 0;
 	num_particles = 0;
 	num_fluid_particles = 0;
 
@@ -572,6 +602,7 @@ void SPHSolver::SetupDeviceBuffer() {
 
 	//particle
 	int maxpnum = host_x.size();
+	host_id_table.resize(maxpnum);
 
 	cudaMalloc(&device_data.pos, maxpnum * sizeof(float3));
 	cudaMalloc(&device_data.vel, maxpnum * sizeof(float3));
