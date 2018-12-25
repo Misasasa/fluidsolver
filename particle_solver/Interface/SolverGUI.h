@@ -64,6 +64,7 @@ private:
 	bool loadtriangleRO = true;
 	bool bTakeSnapshot = false;
 	bool bPause = false;
+	bool dump_renderdata = false;
 
 	int rendermode;
 	int frameNo;

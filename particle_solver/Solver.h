@@ -4,8 +4,15 @@
 
 class Solver {
 public:
-	virtual void Step()=0;
-	virtual void HandleKeyEvent(char key)=0;
+	virtual void Step() {
+		printf("Using Base Step.\n");
+	}
+	virtual void HandleKeyEvent(char key) {
+		printf("Using Base HandleKeyEvent.\n");
+	}
+	virtual void Eval(const char* expression){
+		printf("Using Base Eval.\n");
+	}
 
 	vecf3 host_x;
 	vecf4 host_color;

@@ -61,6 +61,7 @@ public:
 
 	void Step();
 	void HandleKeyEvent(char key);
+	void Eval(const char* expression); //override
 
 	void SetupHostBuffer();
 	void SetupDeviceBuffer();

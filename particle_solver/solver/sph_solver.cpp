@@ -187,14 +187,18 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//correct divergence + velocity update
 	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
 	
-	//DriftVelocity(device_data, num_particles);
+	//DriftVelocity(device_data, num_particles); 
 	
 	CopyFromDevice();
 
 }
 
 
-
+void SPHSolver::Eval(const char* expression) {
+	if (strcmp(expression, "DumpRenderData")==0) {
+		DumpRenderData();
+	}
+}
 
 
 void SPHSolver::Step() {
@@ -214,6 +218,7 @@ void SPHSolver::Step() {
 
 	//if(emit_particle_on)
 	//	fluidSrcEmit();
+
 
 	frame_count++;
 	time += hParam.dt;
@@ -262,7 +267,7 @@ void SPHSolver::DumpRenderData() {
 	CopyFromDeviceFull();
 
 	// Particle Data
-	fprintf(fp, "frame %d\n", dump_count);
+	fprintf(fp, "frame %d\n", frame_count);
 	int output_count=0;
 	//fprintf(fp, "%d\n", num_particles);
 	for (int i=0; i<num_particles; i++) {
@@ -271,7 +276,8 @@ void SPHSolver::DumpRenderData() {
 			continue;
 
 		fprintf(fp, "%d %f %f %f ", output_count++, host_x[i].x, host_x[i].y, host_x[i].z);
-		fprintf(fp, "%f %f %f ",host_color[i].x, host_color[i].y, host_color[i].z);
+		//fprintf(fp, "%f %f %f ",host_color[i].x, host_color[i].y, host_color[i].z);
+		fprintf(fp, "%f %f %f ", host_vol_frac[i*hParam.maxtypenum], host_vol_frac[i*hParam.maxtypenum+1], host_vol_frac[i*hParam.maxtypenum+2]);
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
@@ -579,7 +585,7 @@ void SPHSolver::SetupFluidScene() {
 	AddMultiphaseFluidVolumes();
 
 	BoundaryGenerator bg;
-	ParticleObject* boundary = bg.loadxml("script_object/box.xml");
+	ParticleObject* boundary = bg.loadxml("script_object/big box.xml");
 	LoadPO(boundary);
 	delete boundary;
 

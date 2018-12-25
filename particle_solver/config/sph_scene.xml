@@ -5,45 +5,9 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 3 </SceneId>
+	<SceneId> 1 </SceneId>
 
 </Fluid>
-
-<MultiScene id="0">
-	<Name>		Single Dam Break 	</Name>
-
-	<MaxPNum> 100000 </MaxPNum>
-	<TypeNum> 3 </TypeNum>
-
-	<DT> 0.0004 </DT>
-	<PSpacing> 0.005 </PSpacing>
-	<SmoothRatio> 1.6 </SmoothRatio>
-	
-	<Viscosity>	 0.0005	</Viscosity>
-	<RestDensity> 1000 </RestDensity>
-	<PressureK> 1119 </PressureK>
-
-	<DensityRatio> 1,   1,   1  </DensityRatio>
-	<ViscRatio>    1,   1,   1   </ViscRatio>
-
-	<Vol>
-		<VolMin>	-0.05,  0.015,  -0.05	</VolMin>
-		<VolMax>	0.05,  0.6,  0.05	</VolMax>
-		<VolFrac>   1,  0,  0 </VolFrac>
-	</Vol>
-
-    <!--Vol>
-    	<VolMin>	-7,   32, -7	</VolMin>
-		<VolMax>   7,  46,  7	</VolMax>
-		<VolFrac>  0,  1,  0  </VolFrac>
-    </Vol-->
-
-	<SurfaceTensionK> 0 </SurfaceTensionK>
-	<SurfaceTensionFluidC> 0 </SurfaceTensionFluidC>
-	<FBlending> 1 </FBlending>
-	<Pairwise_k> 1.8 </Pairwise_k>
-	<Pairwise_c> 50000 </Pairwise_c>
-</MultiScene>
 
 <MultiScene id="1">
 	<Name>		Double Dam Break 	</Name>
@@ -55,35 +19,34 @@
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 2 </SmoothRatio>
 	
-	<Viscosity>	 0.0005	</Viscosity>
+	<Viscosity>	 0.05	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
-	<DensityArray> 500,1000,2000 </DensityArray>
+	<DensityArray> 500,1000,1500 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.2,  0.017,  0.2	</VolMin>
-		<VolMax>	-0.2,  0.35,  0.2	</VolMax>
+		<VolMin>	-0.2,  0.017,  0.0	</VolMin>
+		<VolMax>	-0.05,  0.35,  0.15	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
+		<Group> 0 </Group>
 	</Vol>
-
-	<!--Vol>
-		<VolMin>	0.01,  0.017,  0.01	</VolMin>
-		<VolMax>	0.07,  0.35,  0.06	</VolMax>
-		<VolFrac>   0,  1,  0 </VolFrac>
-	</Vol-->
 
 	<Vol>
-		<VolMin>	-0.2,  0.017,  -0.2	</VolMin>
-		<VolMax>	0.2,  0.35,  -0.2	</VolMax>
+		<VolMin>	0.05,  0.017,  0.0	</VolMin>
+		<VolMax>	0.2,  0.35,  0.15	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
+		<Group> 1 </Group>
 	</Vol>
 
-	<SurfaceTensionK> 0 </SurfaceTensionK>
-	<SurfaceTensionFluidC> 0 </SurfaceTensionFluidC>
-	<FBlending> 1 </FBlending>
-	<Pairwise_k> 1.8 </Pairwise_k>
-	<Pairwise_c> 50000 </Pairwise_c>
+	<Vol>
+		<VolMin>	-0.075,  0.017, -0.225 </VolMin>
+		<VolMax>	0.075,  0.35,   -0.075	</VolMax>
+		<VolFrac>   0,  1,  0 </VolFrac>
+		<Group> 2 </Group>
+	</Vol>
+
+	<SurfaceTension> 200 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
 	<DriftTurbulentDiffusion> -0.000 </DriftTurbulentDiffusion>

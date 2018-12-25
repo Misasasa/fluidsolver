@@ -1006,19 +1006,14 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			//phase momentum diffusion
 			// to be finished
 
+			//xsph artificial viscosity [Schechter 13]
+
+			force += vij * dParam.viscosity * data.mass[j]/data.density[j]*(-1)*Kernel_Cubic(h, xij)/dParam.dt;
+
 			//surface tension
 			if (data.group[i]==data.group[j])
 			{
-
-
-				//xsph artificial viscosity [Schechter 13]
-
-				force += vij * dParam.viscosity * data.mass[j]/data.density[j]*(-1)*Kernel_Cubic(h, xij)/dParam.dt;
-
-
-
-
-
+				
 				float sf_kernel;
 				float support_radius = h*2;
 				float fac = 32.0f / 3.141593 / pow(support_radius,9);
@@ -1969,12 +1964,12 @@ __global__ void DetectDispersedParticlesKernel(SimData_SPH data, int num_particl
 			}
 	vol_frac /= vol_sum;
 	data.spatial_status[index] = vol_frac;
-	if (vol_frac < 0.5) {
+	/*if (vol_frac < 0.5) {
 		data.color[index].z=1;
 	}
 	else {
 		data.color[index].z=0;
-	}
+	}*/
 }
 
 };

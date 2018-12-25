@@ -268,6 +268,13 @@ void SolverGUI::keyDown(unsigned char key){
 		else
 			printf("stop taking snapshot\n");
 		break;
+
+	case 'r':
+		dump_renderdata = !dump_renderdata;
+		if(dump_renderdata) printf("Start to dump render data.\n");
+		else printf("Stop dumping render data.\n");
+		break;
+
 	default:
 		break;
 	}
@@ -719,20 +726,18 @@ void SolverGUI::render() {
 		sprintf(tmp, "%f mspf %d", tshow, frameNo);
 		glutSetWindowTitle(tmp);
 		
-		if (bTakeSnapshot) {
-			frametimer += solver->dt;
-			if (frametimer>1/120.0) {
-				takeSnapshot();
-				frametimer = 0;
-			}
+
+		float interval = 1.0/120.0;
+		frametimer += solver->dt;
+		if (frametimer > interval) {
+			if(bTakeSnapshot) takeSnapshot();
+			if(dump_renderdata) solver->Eval("DumpRenderData");
+			frametimer = 0;
 		}
-			
+
 		frameNo++;
 	}
 
-	//if(frameNo==4000)
-	//	bPause = true;
-	
 	MoveCamera();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
