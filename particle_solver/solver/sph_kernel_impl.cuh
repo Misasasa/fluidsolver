@@ -843,8 +843,10 @@ __global__ void UpdateVelocities(SimData_SPH data, int num_particles) {
 	cfloat3 drift_acceleration = data.v_star[index] - data.vel[index];
 	
 	drift_acceleration /= dParam.dt;
+	float magnitude = drift_acceleration.mode();
+	if(magnitude > dParam.acceleration_limit)
+		drift_acceleration = drift_acceleration / magnitude * dParam.acceleration_limit;
 	drift_acceleration = dParam.gravity - drift_acceleration;
-	
 	
 	data.vel[index] = data.v_star[index];
 	data.v_star[index] = drift_acceleration;
@@ -955,8 +957,9 @@ __global__ void DFSPHFactorKernel_Multiphase(SimData_SPH data, int num_particles
 __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 	int i,
 	cfloat3 xi,
+	SimData_SPH data,
 	cfloat3& force,
-	SimData_SPH data)
+	cfloat3& debug)
 {
 	uint gridHash = calcGridHash(gridPos); 
 	if(gridHash==GRID_UNDEF) 
@@ -970,6 +973,21 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 	float h = dParam.smoothradius*0.5;
 	float h2 = h*h;
 	
+	cfloat3 u1u_i(0,0,0), u2u_i(0,0,0), u3u_i(0,0,0);
+	cfloat3 u1u_j, u2u_j, u3u_j;
+	for (int k=0; k<dParam.maxtypenum; k++)
+	{
+		u1u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].x * data.vFrac[i*dParam.maxtypenum+k];
+		u2u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].y * data.vFrac[i*dParam.maxtypenum+k];
+		u3u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].z * data.vFrac[i*dParam.maxtypenum+k];
+	}
+
+
+	//surface tension
+	float support_radius = h*2;
+	float fac = 32.0f / 3.141593 / pow(support_radius, 9);
+	float sf_kernel;
+
 	for (uint j = startIndex; j < endIndex; j++)
 	{
 		cfloat3 xj = data.pos[j];
@@ -981,6 +999,7 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 		float d = sqrt(d2);
 		cfloat3 nablaw = KernelGradient_Cubic(h, xij);
 		cfloat3 vij =  data.vel[i]-data.vel[j];
+		float volj =  data.mass[j]/data.density[j];
 
 		if (data.type[j]==TYPE_FLUID)
 		{
@@ -991,32 +1010,49 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			//	+ data.pressure[index]/data.density[index]/data.density[index]);
 			//force += xij * pc * (-1);
 
-
-
-
 			//viscosity [becker 07]
 
 			/*float vc = dot(nablaw,xij) / (d2 + 0.01 * h2)
 				*data.mass[j]/data.density[j]*2* dParam.viscosity;
 			force += (data.vel[i]-data.vel[j])*vc;*/
 
-			
-
-
 			//phase momentum diffusion
-			// to be finished
+			cfloat3 nablaw = KernelGradient_Cubic(h, xij) * volj;
+			cfloat3 tmp(0,0,0);
+			u1u_j.Set(0,0,0);
+			u2u_j.Set(0,0,0);
+			u3u_j.Set(0,0,0);
+			cfloat3 um_jk;
+			for (int k=0; k<dParam.maxtypenum; k++) {
+				float alphajk = data.vFrac[j*dParam.maxtypenum+k];
+				um_jk = data.drift_v[j*dParam.maxtypenum+k];
+
+				//if(dot(um_jk,um_jk)>100)
+				//	printf("super drift %f %f %f %d\n",  um_jk.x, um_jk.y, um_jk.z, data.uniqueId[j] );
+
+				u1u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].x * alphajk;
+				u2u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].y * alphajk;
+				u3u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].z * alphajk;
+			}
+			u1u_j += u1u_i;
+			u2u_j += u2u_i;
+			u3u_j += u3u_i; 
+
+			tmp.x += dot(nablaw, u1u_j);
+			tmp.y += dot(nablaw, u2u_j);
+			tmp.z += dot(nablaw, u3u_j);
+			debug -= tmp;
+			
+			
 
 			//xsph artificial viscosity [Schechter 13]
 
-			force += vij * dParam.viscosity * data.mass[j]/data.density[j]*(-1)*Kernel_Cubic(h, xij)/dParam.dt;
+			force += vij * dParam.viscosity * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt;
 
 			//surface tension
 			if (data.group[i]==data.group[j])
 			{
 				
-				float sf_kernel;
-				float support_radius = h*2;
-				float fac = 32.0f / 3.141593 / pow(support_radius,9);
 				if(d < h)
 					sf_kernel = 2*pow((support_radius-d)*d,3) - pow(support_radius,6)/64.0;
 				else if (d<support_radius)
@@ -1025,30 +1061,23 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 					sf_kernel = 0;
 				sf_kernel *= fac;
 
-				cfloat3 sf_tension = xij * dParam.surface_tension * data.mass[j]/data.density[j] * sf_kernel / d *(-1);
+				cfloat3 sf_tension = xij * dParam.surface_tension * volj * sf_kernel / d *(-1);
 
-				float kij = 2/(data.spatial_status[i]+data.spatial_status[j]);
-
+				float kij = data.restDensity[i]/data.density[i] + data.restDensity[j]/data.density[j];
 				force += sf_tension * kij;
-				//printf("%f %f %f\n", sf_tension.x, sf_tension.y, sf_tension.z);
 			}
 		}
 
-
-		//boundary collision
 		if (data.type[j]==TYPE_RIGID) {
 			/*float B=1;
 
 			float q = d/sr;
-			if (q<0.66666) {
+			if (q<0.66666) 
 				B *= 0.66666;
-			}
-			else if (q<1) {
+			else if (q<1)
 				B *= 2*q - 1.5*q*q;
-			}
-			else if (q<2) {
+			else if (q<2)
 				B *= 0.5 * (2-q)*(2-q);
-			}
 			else
 				B = 0;
 
@@ -1056,20 +1085,20 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 
 			float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
 			force += xij * magnitude;
-*/
+			*/
+
 			//artificial viscosity
 			float xv = dot(vij, xij);
 			if (xv < 0) {
 				float visc = dParam.bvisc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
 				float pi = visc * xv /(d2 + 0.01*h2);
 				cfloat3 f = nablaw * pi * data.restDensity[i]*data.restDensity[j];
-				cfloat3 n = data.normal[j];
-				cfloat3 fn = n *  dot(fn,n);
-				cfloat3 ft = f - fn;
-				force += fn;
-
-				//if(data.spatial_status[i]>0.8)
-				//	force += ft * (data.spatial_status[i]-0.8)*5.0;
+				//cfloat3 n = data.normal[j];
+				//cfloat3 fn = n *  dot(fn,n);
+				//cfloat3 ft = f - fn;
+				//force += fn;
+				//force += ft;
+				force += f;
 			}
 		}
 	}
@@ -1093,10 +1122,7 @@ __global__ void NonPressureForceKernel_Multiphase(
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
 	cfloat3 force(0, 0, 0);
-
-	//
-	//predict velocity
-	//data.vel[index] = data.vel[index] + cfloat3(0, -9.8, 0)*dParam.dt;
+	cfloat3 debug(0,0,0);
 
 	for (int z=-1; z<=1; z++)
 		for (int y=-1; y<=1; y++)
@@ -1105,15 +1131,17 @@ __global__ void NonPressureForceKernel_Multiphase(
 				NonPressureForceCell_Multiphase(nPos,
 					index,
 					pos,
+					data,
 					force,
-					data);
+					debug);
 			}
+	force += debug;
+	/*if (index % 1000==0) {
+		printf("%f %f %f\n", debug.x, debug.y, debug.z);
+	}*/
 
 	force += cfloat3(0, -9.8, 0); //gravity
 	
-	/*if(data.spatial_status[index]==1)
-		force += cfloat3(0,9.8,0);*/
-		
 	data.v_star[index] = data.vel[index] + force * dParam.dt;
 }
 
@@ -1573,9 +1601,10 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	cfloat3* vol_frac_gradient = &data.vol_frac_gradient[index*dParam.maxtypenum];
 
 
-	float turbulent_diffusion = dParam.drift_turbulent_diffusion;
-	for(int k=0; k<dParam.maxtypenum; k++) vol_frac_gradient[k].Set(0,0,0); //initialization
-	
+	//float turbulent_diffusion = dParam.drift_turbulent_diffusion;
+	float turbulent_diffusion = data.vel[index].square() * dParam.drift_turbulent_diffusion + dParam.drift_thermal_diffusion;
+	for(int k=0; k<dParam.maxtypenum; k++) 
+		vol_frac_gradient[k].Set(0,0,0); //initialization
 	
 	for (int z=-1; z<=1; z++) 
 		for (int y=-1; y<=1; y++)	
@@ -1613,8 +1642,9 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 		cfloat3 drift_vk = drift_acceleration * dynamic_constant * density_factor;
 		drift_v[k] = drift_vk;
 
-		//turbulent term
-		//drift_v[k] += vol_frac_gradient[k] * turbulent_diffusion / data.vFrac[index*dParam.maxtypenum+k];
+		if (dot(drift_v[k], drift_v[k])>100) {
+			printf("super drift? %f %f %f from %f %f %f\n", drift_v[k].x, drift_v[k].y, drift_v[k].z, drift_acceleration.x, drift_acceleration.y, drift_acceleration.z);
+		}
 	}
 }
 
@@ -1674,8 +1704,12 @@ __global__ void PredictPhaseDiffusionKernel(SimData_SPH data, int num_particles)
 	float vol_frac_change[10];
 	float vol_i = data.mass[index] / data.density[index];
 
-	for(int k=0; k<dParam.maxtypenum; k++) vol_frac_change[k]=0; //initialization
-	for (int z=-1; z<=1; z++) for (int y=-1; y<=1; y++)	for (int x=-1; x<=1; x++) 
+	for(int k=0; k<dParam.maxtypenum; k++) 
+		vol_frac_change[k]=0; //initialization
+
+	for (int z=-1; z<=1; z++) 
+	for (int y=-1; y<=1; y++)	
+	for (int x=-1; x<=1; x++) 
 	{
 		cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
 		PredictPhaseDiffusionCell(
@@ -1713,15 +1747,19 @@ __device__ void PhaseDiffusionCell(
 	float* vol_frac_change) {
 
 	uint grid_hash = calcGridHash(cell_index);
-	if(grid_hash==GRID_UNDEF) return;
+	if(grid_hash==GRID_UNDEF) 
+		return;
+	
 	uint start_index = data.gridCellStart[grid_hash];
-	if (start_index == 0xffffffff) return;
+	if (start_index == 0xffffffff)
+		return;
 	uint end_index = data.gridCellEnd[grid_hash];
+	
 	float sr = dParam.smoothradius;
 	float sr2 = sr*sr;
-	float lambda_ij, inc;
-
 	int num_type = dParam.maxtypenum;
+	float lambda_ij, inc;
+	
 	for (uint j = start_index; j < end_index; j++)
 	{
 		if (j == i || data.type[j]!=TYPE_FLUID) continue;
@@ -1729,15 +1767,14 @@ __device__ void PhaseDiffusionCell(
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
 		float d2 = xij.square();
-		if (d2 >= sr2) continue;
+		if (d2 >= sr2)
+			continue;
 
-		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
+		cfloat3 nabla_w = KernelGradient_Cubic(sr*0.5, xij);
 		float vol_j = data.mass[j] / data.density[j];
 		cfloat3 flux_k;
-		if(lambda_i < data.phase_diffusion_lambda[j]) //pick up smaller lambda
-			lambda_ij = lambda_i;
-		else
-			lambda_ij = data.phase_diffusion_lambda[j];
+
+		lambda_ij = fmin(data.phase_diffusion_lambda[i], data.phase_diffusion_lambda[j]);
 
 		for (int k=0; k<dParam.maxtypenum; k++) {
 			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
@@ -1758,19 +1795,22 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	
-	
 	if (data.type[index]!=TYPE_FLUID){
 		for (int k=0; k<dParam.maxtypenum; k++)
 			data.vol_frac_change[index*dParam.maxtypenum+k]=0;
 		return;
 	}
+
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
-	float* vol_frac_change = &data.vol_frac_change[index*dParam.maxtypenum];
 	float vol_i = data.mass[index] / data.density[index];
 	float lambda_i = data.phase_diffusion_lambda[index];
+	
+	float* vol_frac_change = &data.vol_frac_change[index*dParam.maxtypenum];
 
-	for (int k=0; k<dParam.maxtypenum; k++) vol_frac_change[k]=0; //initialization
+	for (int k=0; k<dParam.maxtypenum; k++) 
+		vol_frac_change[k]=0; //initialization
+
 	for (int z=-1; z<=1; z++) 
 		for (int y=-1; y<=1; y++)	
 			for (int x=-1; x<=1; x++)
@@ -1785,13 +1825,6 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 					data,
 					vol_frac_change);
 			}
-	
-	//float verify=0;
-	//for (int k=0; k<dParam.maxtypenum; k++) verify+=vol_frac_change[k];
-	//if( abs(verify) > EPSILON )
-	//	printf("sum phase update: %d %f %f %f\n",  index,
-	//		vol_frac_change[0], vol_frac_change[1], vol_frac_change[2]);
-			
 }
 
 __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
@@ -1803,9 +1836,6 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	float* vol_frac = &data.vFrac[index*dParam.maxtypenum];
 	bool debug = false;
 	float normalize=0;
-	float tmp[2];
-	tmp[0]=vol_frac[0];
-	tmp[1]=vol_frac[1];
 
 	for (int k=0; k<dParam.maxtypenum; k++){
 		vol_frac[k] += vol_frac_change[k] * dParam.dt;
@@ -1925,7 +1955,7 @@ __device__ void DetectDispersedCell(
 		if (data.type[j]==TYPE_FLUID && j!=i)
 		{
 			neighbor_count ++;
-			float contrib = 1;//Kernel_Cubic(sr*0.5, xij)*data.mass[i];
+			float contrib = 1;
 			vol_sum += contrib;
 
 			if(data.group[i]==data.group[j]) 
@@ -1964,12 +1994,6 @@ __global__ void DetectDispersedParticlesKernel(SimData_SPH data, int num_particl
 			}
 	vol_frac /= vol_sum;
 	data.spatial_status[index] = vol_frac;
-	/*if (vol_frac < 0.5) {
-		data.color[index].z=1;
-	}
-	else {
-		data.color[index].z=0;
-	}*/
 }
 
 };

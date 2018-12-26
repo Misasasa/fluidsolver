@@ -26,30 +26,32 @@
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.2,  0.017,  0.0	</VolMin>
-		<VolMax>	-0.05,  0.35,  0.15	</VolMax>
+		<VolMin>	-0.15,  0.017,  0.0	</VolMin>
+		<VolMax>	-0.05,  0.15,  0.1	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
 	<Vol>
 		<VolMin>	0.05,  0.017,  0.0	</VolMin>
-		<VolMax>	0.2,  0.35,  0.15	</VolMax>
+		<VolMax>	0.15,  0.15,  0.1	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
-		<Group> 1 </Group>
+		<Group> 0 </Group>
 	</Vol>
 
 	<Vol>
-		<VolMin>	-0.075,  0.017, -0.225 </VolMin>
-		<VolMax>	0.075,  0.35,   -0.075	</VolMax>
+		<VolMin>	-0.05,  0.017, -0.15 </VolMin>
+		<VolMax>	0.05,  0.15,   -0.05	</VolMax>
 		<VolFrac>   0,  1,  0 </VolFrac>
-		<Group> 2 </Group>
+		<Group> 0 </Group>
 	</Vol>
 
 	<SurfaceTension> 200 </SurfaceTension>
 
-	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
-	<DriftTurbulentDiffusion> -0.000 </DriftTurbulentDiffusion>
+	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
+	<DriftThermalDiffusion> -0.001 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
+	<AcceleractionLimit> 20 </AcceleractionLimit>
 </MultiScene>
 
 <MultiScene id="2">

@@ -48,7 +48,10 @@ struct SimParam_SPH {
 	float viscArr[10];
 	float drift_dynamic_diffusion;
 	float drift_turbulent_diffusion;
+	float drift_thermal_diffusion;
 	float surface_tension;
+	int num_fluidparticles;
+	float acceleration_limit;
 
 	//solid
 	float solidK;

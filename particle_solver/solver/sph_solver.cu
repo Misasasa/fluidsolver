@@ -334,7 +334,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 	cudaMemset(data.div_stiff, 0, sizeof(float)*num_particles);
 
 
-
+	float err_avg=0;
 	while (true && iter<maxiter) 
 	{
 		DensityStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
@@ -346,15 +346,16 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		cudaMemcpy(debug, data.error, num_particles*sizeof(float), cudaMemcpyDeviceToHost);
 		err_max = 0;
-		float err_avg=0;
+		err_avg = 0;
+		
 		for (int i=0; i<num_particles; i++)
 		{
 			err_max = debug[i]>err_max ? debug[i] : err_max;
 			err_avg += debug[i];
 		}
-		err_avg /= 38976.0;
+		err_avg /= hParam.num_fluidparticles;
 		
-		if (bDebug)	printf("%d density error: %f %f\n", iter, err_max, err_avg);
+		
 		if (err_avg < ethres) break;
 
 		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
@@ -364,6 +365,8 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 		iter++;
 	}
+	
+	if (bDebug)	printf("%d density error: %f %f\n", iter, err_max, err_avg);
 	
 	delete debug;
 

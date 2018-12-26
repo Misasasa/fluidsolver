@@ -164,32 +164,44 @@ void SPHSolver::SetupMultiphaseSPH() {
 	RigidParticleVolume(device_data, num_particles);
 }
 
+
+
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	//PhaseDiffusion(device_data, num_particles);
+	PhaseDiffusion(device_data, num_particles);
 	
-	//EffectiveMass(device_data, num_particles);
+	EffectiveMass(device_data, num_particles);
 	
+	//catpaw::cTime clock; clock.tick();
 
-	DetectDispersedParticles(device_data, num_particles);
+	//DetectDispersedParticles(device_data, num_particles);
 
 	DFSPHFactor_Multiphase(device_data, num_particles);
 	
 	NonPressureForce_Multiphase(device_data, num_particles);
 	
-	//correct density + position update
-	EnforceDensity_Multiphase(device_data, num_particles, 10, 0.001, false,  true);
+	//printf("predict %f\n",clock.tack()*1000); clock.tick();
+
+
+	EnforceDensity_Multiphase(device_data, num_particles, 10, 1, false,  true);
+
+	//printf("density solve %f\n", clock.tack()*1000); clock.tick();
 
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
 
-	//correct divergence + velocity update
+	//printf("sort %f\n", clock.tack()*1000); clock.tick();
+
 	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
 	
-	//DriftVelocity(device_data, num_particles); 
+	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
+
+	DriftVelocity(device_data, num_particles); 
 	
 	CopyFromDevice();
+
+	//printf("copy %f\n", clock.tack()*1000); clock.tick();
 
 }
 
@@ -400,7 +412,9 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	//Multiphase
 	hParam.drift_dynamic_diffusion = reader.GetFloat("DriftDynamicDiffusion");
 	hParam.drift_turbulent_diffusion = reader.GetFloat("DriftTurbulentDiffusion");
+	hParam.drift_thermal_diffusion = reader.GetFloat("DriftThermalDiffusion");
 	hParam.surface_tension = reader.GetFloat("SurfaceTension");
+	hParam.acceleration_limit = reader.GetFloat("AccelerationLimit");
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -420,6 +434,7 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	dump_count = 0;
 	num_particles = 0;
 	num_fluid_particles = 0;
+	hParam.num_fluidparticles = 0;
 
 	ParseParam(xmlpath);
 
@@ -558,6 +573,7 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 				}
 
 		printf("fluid block No. %d has %d particles.\n", i, addcount);
+		hParam.num_fluidparticles += addcount;
 	}
 }
 
