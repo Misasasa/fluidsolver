@@ -164,6 +164,10 @@ struct cmat3 {
 	HDFUNC cmat3() {
 		for(int i=0;i<9;i++) data[i]=0;
 	}
+	HDFUNC cmat3(float mat[]) { //make sure mat longer than 9
+		for(int i=0;i<9;i++) data[i]=mat[i];
+	}
+
 	HDFUNC void Set(float mat[]) {
 		for (int i=0; i<9; i++) data[i] = mat[i];
 	}

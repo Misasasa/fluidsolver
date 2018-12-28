@@ -115,12 +115,14 @@ struct SimData_SPH {
 	float* phase_diffusion_lambda;
 	float* vol_frac_change;
 	float* spatial_status;
+	cmat3* strain_rate;
+	cmat3* cauchy_stress;
 
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* sorted_effective_mass;
 	float* sorted_effective_density;
-
+	cmat3* sorted_cauchy_stress;
 
 	//edge data
 	//edgeConstraint* edgeCons;
@@ -180,10 +182,6 @@ void reorderDataAndFindCellStart(
 	int numGridCells
 );
 
-void applyXSPH(
-	SimData_SPH data,
-	int numParticles
-);
 
 //Standard SPH
 void computePressure(SimData_SPH data, int numP);
@@ -251,6 +249,15 @@ void RigidParticleVolume(SimData_SPH data, int num_particles);
 
 void MoveConstraintBoxAway(SimData_SPH data, int num_particles);
 void DetectDispersedParticles(SimData_SPH data, int num_particles);
+
+
+/**********      Solid       ***********/
+void ComputeTension(SimData_SPH data, int num_particles);
+void UpdateSolidState(SimData_SPH data, int num_particles);
+void PlasticProjection(SimData_SPH data, int num_particles);
+
+
+
 };
 
 

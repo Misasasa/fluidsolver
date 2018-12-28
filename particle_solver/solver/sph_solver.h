@@ -33,6 +33,7 @@ public:
 	vecf	host_rest_density; //rest density
 	vecf	host_vol_frac; //volume fraction
 	vecf3	host_v_star;
+	vector<cmat3> host_cauchy_stress;
 
 	SimData_SPH device_data;
 	
@@ -74,6 +75,8 @@ public:
 	void SolveSPH();
 	void SolveDFSPH();
 	void SolveMultiphaseSPH(); //with DFSPH
+
+	void PhaseDiffusion_Host();
 
 	void Setup();
 	int  AddDefaultParticle();

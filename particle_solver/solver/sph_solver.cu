@@ -282,7 +282,7 @@ void DFSPHFactor_Multiphase(SimData_SPH data, int num_particles) {
 
 	DFSPHFactorKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: compute df alpha multiphase");
+	getLastCudaError("Kernel failed: compute df alpha multiphase");
 
 }
 
@@ -290,9 +290,11 @@ void EffectiveMass(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	EffectiveMassKernel <<< num_blocks, num_threads>>> (data, num_particles);
+	EffectiveMassKernel <<< num_blocks, num_threads>>> (
+		data, 
+		num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: update mass factor");
+	getLastCudaError("Kernel failed: update mass factor");
 
 }
 
@@ -300,9 +302,11 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	NonPressureForceKernel_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
+	NonPressureForceKernel_Multiphase<<<num_blocks,num_threads>>>(
+		data, 
+		num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: compute non-pressure force multiphase");
+	getLastCudaError("Kernel failed: non-pressure force multiphase");
 
 }
 
@@ -497,5 +501,46 @@ void DetectDispersedParticles(SimData_SPH data, int num_particles)
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: detect dispersed particles");
 }
+
+
+
+
+
+
+
+void ComputeTension(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	ComputeTension_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: detect dispersed particles");
+
+}
+
+void UpdateSolidState(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	UpdateSolidState_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: detect dispersed particles");
+}
+
+void PlasticProjection(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	PlasticProjection_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: detect dispersed particles");
+}
+
+
+
+
+
+
+
 
 };

@@ -186,9 +186,9 @@ __global__ void reorderDataAndFindCellStartD(
 		//Multiphase
 		data.sortedRestDensity[index] = data.restDensity[sortedIndex];
 		data.sorted_effective_mass[index] = data.effective_mass[sortedIndex];
-		//data.sorted_effective_density[index] = data.effective_density[sortedIndex];
 		data.sorted_rho_stiff[index] = data.rho_stiff[sortedIndex];
 		data.sorted_div_stiff[index] = data.div_stiff[sortedIndex];
+		data.sorted_cauchy_stress[index] = data.cauchy_stress[sortedIndex];
 
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
@@ -1041,7 +1041,7 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			tmp.x += dot(nablaw, u1u_j);
 			tmp.y += dot(nablaw, u2u_j);
 			tmp.z += dot(nablaw, u3u_j);
-			debug -= tmp;
+			force -= tmp;
 			
 			
 
@@ -1068,10 +1068,8 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 			}
 		}
 
-		if (data.type[j]==TYPE_RIGID) {
-			/*float B=1;
-
-			float q = d/sr;
+		else if (data.type[j]==TYPE_RIGID) {
+			/*float B=1, q = d/sr;
 			if (q<0.66666) 
 				B *= 0.66666;
 			else if (q<1)
@@ -1080,11 +1078,8 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 				B *= 0.5 * (2-q)*(2-q);
 			else
 				B = 0;
-
 			B *= 0.02 * 88.5*88.5 /d;
-
-			float magnitude = data.mass[j]/(data.mass[index]+data.mass[j]) * B;
-			force += xij * magnitude;
+			force += xij * data.mass[j]/(data.mass[index]+data.mass[j]) * B;
 			*/
 
 			//artificial viscosity
@@ -1136,9 +1131,6 @@ __global__ void NonPressureForceKernel_Multiphase(
 					debug);
 			}
 	force += debug;
-	/*if (index % 1000==0) {
-		printf("%f %f %f\n", debug.x, debug.y, debug.z);
-	}*/
 
 	force += cfloat3(0, -9.8, 0); //gravity
 	
@@ -1994,6 +1986,211 @@ __global__ void DetectDispersedParticlesKernel(SimData_SPH data, int num_particl
 			}
 	vol_frac /= vol_sum;
 	data.spatial_status[index] = vol_frac;
+}
+
+
+__device__ void ComputeTension_Cell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cfloat3& tension
+){
+	uint gridHash = calcGridHash(cell_index);
+	if (gridHash==GRID_UNDEF)
+		return;
+
+	uint startIndex = data.gridCellStart[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	uint endIndex = data.gridCellEnd[gridHash];
+	float voli = data.mass[i] / data.density[i];
+	cfloat3 nablaw_ij;
+	cfloat3 tensionij;
+	
+	cmat3& sigma_i = data.cauchy_stress[i];
+
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xij = xi - data.pos[j];;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
+			continue;
+
+		cmat3& sigma_j = data.cauchy_stress[j];
+		nablaw_ij = KernelGradient_Cubic(sr*0.5, xij);
+		tensionij.x = nablaw_ij.x * sigma_j.data[0]
+			+ nablaw_ij.y * sigma_j.data[3]
+			+ nablaw_ij.z * sigma_j.data[6];
+		tensionij.y = nablaw_ij.x * sigma_j.data[1]
+			+ nablaw_ij.y * sigma_j.data[4]
+			+ nablaw_ij.z * sigma_j.data[7];
+		tensionij.z = nablaw_ij.x * sigma_j.data[2]
+			+ nablaw_ij.y * sigma_j.data[5]
+			+ nablaw_ij.z * sigma_j.data[8];
+		tension += tensionij * data.mass[j] / data.density[j];
+
+		tensionij.x = nablaw_ij.x * sigma_i.data[0]
+			+ nablaw_ij.y * sigma_i.data[3]
+			+ nablaw_ij.z * sigma_i.data[6];
+		tensionij.y = nablaw_ij.x * sigma_i.data[1]
+			+ nablaw_ij.y * sigma_i.data[4]
+			+ nablaw_ij.z * sigma_i.data[7];
+		tensionij.z = nablaw_ij.x * sigma_i.data[2]
+			+ nablaw_ij.y * sigma_i.data[5]
+			+ nablaw_ij.z * sigma_i.data[8];
+		tension += tensionij * voli;
+
+	}
+}
+
+__global__ void ComputeTension_Kernel(SimData_SPH data, int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	cfloat3  tension(0,0,0);
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				ComputeTension_Cell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					tension);
+			}
+	data.v_star[index] += tension * dParam.dt;
+}
+
+
+
+
+__device__ void UpdateSolidState_Cell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cmat3& nabla_v
+) {
+	uint gridHash = calcGridHash(cell_index);
+	if (gridHash==GRID_UNDEF)
+		return;
+
+	uint startIndex = data.gridCellStart[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	uint endIndex = data.gridCellEnd[gridHash];
+	float voli = data.mass[i] / data.density[i];
+	cfloat3 nablaw_ij;
+	cfloat3 tensionij;
+
+	cmat3& sigma_i = data.cauchy_stress[i];
+
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xij = xi - data.pos[j];;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
+			continue;
+
+		cfloat3 vj = data.vel[j] * data.mass[j] / data.density[j]
+			+ data.vel[i] * voli;
+		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
+
+		nabla_v[0][0] += vj.x * nablaw.x;	nabla_v[0][1] += vj.x * nablaw.y;	nabla_v[0][2] += vj.x * nablaw.z;
+		nabla_v[1][0] += vj.y * nablaw.x;	nabla_v[1][1] += vj.y * nablaw.y;	nabla_v[1][2] += vj.y * nablaw.z;
+		nabla_v[2][0] += vj.z * nablaw.x;	nabla_v[2][1] += vj.z * nablaw.y;	nabla_v[2][2] += vj.z * nablaw.z;
+	}
+}
+
+
+//infinitesimal strain theory
+
+__device__ void updateStress(cmat3& nabla_v, cmat3& stress, float dt) 
+{
+	cmat3 nabla_vT;
+	mat3transpose(nabla_v, nabla_vT);
+	cmat3 strain_rate;
+	mat3add(nabla_v, nabla_vT, strain_rate);
+	cmat3 rotation_rate;
+	mat3sub(nabla_v, nabla_vT, rotation_rate);
+
+	float p = (strain_rate.data[0] + strain_rate.data[4] + strain_rate.data[8])/3;
+	strain_rate.data[0] -= p;
+	strain_rate.data[4] -= p;
+	strain_rate.data[8] -= p;
+
+	for (int k=0; k<9; k++) {
+		strain_rate.data[k] *= dParam.solidG;
+		rotation_rate.data[k] *= 0.5;
+	}
+
+	p *= 3*0.5*dParam.solidK;
+	strain_rate.data[0] += p;
+	strain_rate.data[4] += p;
+	strain_rate.data[8] += p;
+
+	cmat3 stress_rate = strain_rate;
+	mat3prod(rotation_rate, stress, nabla_vT);
+	mat3add(stress_rate, nabla_vT, stress_rate);
+	mat3prod(stress, rotation_rate, nabla_vT);
+	mat3sub(stress_rate, nabla_vT, stress_rate);
+
+	for (int k=0; k<9; k++) {
+		stress.data[k] += stress_rate.data[k] * dt;
+	}
+}
+
+
+__global__ void UpdateSolidState_Kernel(SimData_SPH data, int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	cmat3  nabla_v;
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				UpdateSolidState_Cell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					nabla_v);
+			}
+	
+	updateStress(nabla_v, data.cauchy_stress[index], dParam.dt);
+}
+
+
+
+
+__global__ void PlasticProjection_Kernel(SimData_SPH data, int num_particles)
+{
+
 }
 
 };

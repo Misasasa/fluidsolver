@@ -164,6 +164,40 @@
 </MultiScene>
 
 
+<MultiScene id="4">
+	<Name>		Deformable 	</Name>
+
+	<MaxPNum> 100000 </MaxPNum>
+	<TypeNum> 3 </TypeNum>
+
+	<DT> 0.0004 </DT>
+	<PSpacing> 0.005 </PSpacing>
+	<SmoothRatio> 2 </SmoothRatio>
+	
+	<Viscosity>	 0.05	</Viscosity>
+	<RestDensity> 1000 </RestDensity>
+	<PressureK> 1119 </PressureK>
+	<DensityArray> 500,1000,1500 </DensityArray>
+	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
+	
+	<Vol>
+		<VolMin>	-0.15,  0.017,  0.0	</VolMin>
+		<VolMax>	-0.05,  0.15,  0.1	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+		<Group> 0 </Group>
+	</Vol>
+
+	<SurfaceTension> 200 </SurfaceTension>
+
+	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
+	<DriftThermalDiffusion> -0.001 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
+	<AcceleractionLimit> 20 </AcceleractionLimit>
+
+	<YoungsModulus> 2000 </YoungsModulus>
+	<PoissonsRatio> 0.3 </PoissonsRatio>
+</MultiScene>
+
 <BoundInfo id="1">
 	<Viscosity>	 1		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>

@@ -26,6 +26,9 @@ void SPHSolver::Copy2Device() {
 	int num_particlesT = num_particles * hParam.maxtypenum;
 	cudaMemcpy(device_data.vFrac, host_vol_frac.data(), num_particlesT * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.restDensity, host_rest_density.data(), num_particles * sizeof(float), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(device_data.cauchy_stress, host_cauchy_stress.data(), num_particles*sizeof(cmat3), cudaMemcpyHostToDevice);
+	
 	CopyParam2Device();
 }
 
@@ -43,9 +46,12 @@ void SPHSolver::Copy2Device(int begin, int  end) {
 	cudaMemcpy(device_data.mass+begin,	host_mass.data()+begin,		copy_length * sizeof(float),	cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.uniqueId+begin,host_unique_id.data()+begin, copy_length * sizeof(int),		cudaMemcpyHostToDevice);
 
+
+
+	// multiphase data
 	int num_particlesT = num_particles * hParam.maxtypenum;
 	int copy_length_type = copy_length * hParam.maxtypenum;
-
+	
 	cudaMemcpy(device_data.vFrac + begin*hParam.maxtypenum, 
 		host_vol_frac.data() + begin*hParam.maxtypenum, 
 		copy_length_type * sizeof(float),
@@ -54,6 +60,8 @@ void SPHSolver::Copy2Device(int begin, int  end) {
 		host_rest_density.data() + begin*hParam.maxtypenum,
 		copy_length_type * sizeof(float),
 		cudaMemcpyHostToDevice);
+
+	
 	CopyParam2Device();
 }
 
@@ -103,6 +111,7 @@ void SPHSolver::Sort() {
 
 	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice );
 	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, num_particles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
@@ -164,45 +173,53 @@ void SPHSolver::SetupMultiphaseSPH() {
 	RigidParticleVolume(device_data, num_particles);
 }
 
+void SPHSolver::PhaseDiffusion_Host() {
+
+	DriftVelocity(device_data, num_particles);
+
+	PhaseDiffusion(device_data, num_particles);
+
+	EffectiveMass(device_data, num_particles);
+
+	DFSPHFactor_Multiphase(device_data, num_particles);
+
+}
 
 
 void SPHSolver::SolveMultiphaseSPH() {
 	
-	PhaseDiffusion(device_data, num_particles);
-	
-	EffectiveMass(device_data, num_particles);
 	
 	//catpaw::cTime clock; clock.tick();
-
+	
 	//DetectDispersedParticles(device_data, num_particles);
-
-	DFSPHFactor_Multiphase(device_data, num_particles);
-	
 	NonPressureForce_Multiphase(device_data, num_particles);
-	
 	//printf("predict %f\n",clock.tack()*1000); clock.tick();
+	
+	//compute tension in solids
+	ComputeTension(device_data, num_particles);
 
 
 	EnforceDensity_Multiphase(device_data, num_particles, 10, 1, false,  true);
-
 	//printf("density solve %f\n", clock.tack()*1000); clock.tick();
 
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
-
 	//printf("sort %f\n", clock.tack()*1000); clock.tick();
-
 	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
-	
 	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
 
-	DriftVelocity(device_data, num_particles); 
+
+	//update deformation gradient F
+	UpdateSolidState(device_data, num_particles);
+	//plastic projection
+	PlasticProjection(device_data, num_particles);
 	
+
+	PhaseDiffusion_Host();
+
+
 	CopyFromDevice();
-
-	//printf("copy %f\n", clock.tack()*1000); clock.tick();
-
 }
 
 
@@ -416,6 +433,12 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.surface_tension = reader.GetFloat("SurfaceTension");
 	hParam.acceleration_limit = reader.GetFloat("AccelerationLimit");
 
+	float E = reader.GetFloat("YoungsModulus");
+	float v = reader.GetFloat("PoissonsRatio");
+	hParam.solidG = E/2/(1+v);
+	hParam.solidK = E/3/(1-2*v);
+
+
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
 
@@ -489,6 +512,9 @@ void SPHSolver::SetupHostBuffer() {
 	*/
 }
 
+//zero by default
+cmat3 zero_mat3;
+
 int SPHSolver::AddDefaultParticle() {
 	host_x.push_back(cfloat3(0, 0, 0));
 	host_color.push_back(cfloat4(1, 1, 1, 1));
@@ -500,6 +526,7 @@ int SPHSolver::AddDefaultParticle() {
 	host_group.push_back(0);
 	host_rest_density.push_back(0);
 	host_v_star.push_back(cfloat3(0,0,0));
+	host_cauchy_stress.push_back(zero_mat3);
 
 	for(int t=0; t<hParam.maxtypenum; t++)
 		host_vol_frac.push_back(0);
@@ -671,11 +698,14 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
 	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
 
 	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_density, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
 
 	int glen = hParam.gridres.prod();
 
