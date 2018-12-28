@@ -5,7 +5,7 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 1 </SceneId>
+	<SceneId> 4 </SceneId>
 
 </Fluid>
 
@@ -181,13 +181,13 @@
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.15,  0.017,  0.0	</VolMin>
-		<VolMax>	-0.05,  0.15,  0.1	</VolMax>
+		<VolMin>	-0.05,  0.015,  0.0	</VolMin>
+		<VolMax>	0.05,  0.115,  0.1	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
-	<SurfaceTension> 200 </SurfaceTension>
+	<SurfaceTension> 100 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
 	<DriftThermalDiffusion> -0.001 </DriftThermalDiffusion>
@@ -196,6 +196,7 @@
 
 	<YoungsModulus> 2000 </YoungsModulus>
 	<PoissonsRatio> 0.3 </PoissonsRatio>
+	<Yield> 1000000 </Yield>
 </MultiScene>
 
 <BoundInfo id="1">

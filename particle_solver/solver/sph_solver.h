@@ -89,6 +89,7 @@ public:
 	// Multiphase Fluid
 	void SetupMultiphaseSPH();
 	void AddMultiphaseFluidVolumes();
+	void AddDeformableVolumes();
 
 	void LoadPO(ParticleObject* po);
 
