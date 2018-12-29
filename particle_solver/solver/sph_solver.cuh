@@ -12,11 +12,12 @@
 namespace sph{
 
 struct SimParam_SPH {
-	//particle data
-	float global_relaxation;
-
+	
 	int maxpnum;
 	int maxtypenum;
+	int num_fluid_p;
+	int num_deformable_p;
+
 
 	float dx;
 	cfloat3 gridxmin;
@@ -39,7 +40,6 @@ struct SimParam_SPH {
 	float kernel_cubic;
 	float kernel_cubic_gradient;
 
-
 	//wc-sph
 	float pressureK;
 
@@ -50,7 +50,6 @@ struct SimParam_SPH {
 	float drift_turbulent_diffusion;
 	float drift_thermal_diffusion;
 	float surface_tension;
-	int num_fluidparticles;
 	float acceleration_limit;
 
 	//solid
@@ -117,38 +116,21 @@ struct SimData_SPH {
 	float* spatial_status;
 	cmat3* strain_rate;
 	cmat3* cauchy_stress;
+	int* neighborlist; //store uniqueid
+	int* local_id; //id within the same type
 
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* sorted_effective_mass;
-	float* sorted_effective_density;
 	cmat3* sorted_cauchy_stress;
+	int*   sorted_local_id;
 
-	//edge data
-	//edgeConstraint* edgeCons;
-	//edgeConsVar* edgeConsVar;
-
-	//triangle data
-	/*objtriangle* triangles;
-	float* facetVol;
-	float* facetArea;
-	int*   facetObjId;
-	cfloat3* baryCenter;
-	int*	 baryCenterTriangleId;
-	cfloat3* sortedBaryCenter;
-	int*	 sortedBaryCenterTriangleId;*/
-
-	//Sort
+	// Grid Sort
 	int* particleHash;   //cellid of each particle
 	int* particleIndex;  //particle index, sorted in process
 	int* gridCellStart; //cell begin
 	int* gridCellEnd;  //cell end
 	int* gridCellCollisionFlag;
-
-	/*int* baryCenterHash;
-	int* baryCenterIndex;
-	int* gridCellStartBaryCenter;
-	int* gridCellEndBaryCenter;*/
 
 	//Anisotropic Kernel
 	cfloat3* avgpos;
@@ -246,6 +228,7 @@ void EffectiveMass(SimData_SPH data, int num_particles);
 void DriftVelocity(SimData_SPH data, int num_particles);
 void PhaseDiffusion(SimData_SPH data, int num_particles);
 void RigidParticleVolume(SimData_SPH data, int num_particles);
+void InitializeDeformable(SimData_SPH data, int num_particles);
 
 void MoveConstraintBoxAway(SimData_SPH data, int num_particles);
 void DetectDispersedParticles(SimData_SPH data, int num_particles);

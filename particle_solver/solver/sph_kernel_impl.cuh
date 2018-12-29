@@ -1974,7 +1974,7 @@ __device__ void DetectDispersedCell(
 		if (d2 >= sr2) 
 			continue;
 
-		if (data.type[j]==TYPE_FLUID && j!=i)
+		if (data.type[j]!=TYPE_RIGID && j!=i)
 		{
 			neighbor_count ++;
 			float contrib = 1;
@@ -1991,7 +1991,7 @@ __global__ void DetectDispersedParticlesKernel(SimData_SPH data, int num_particl
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) 
 		return;
-	if (data.type[index]!=TYPE_FLUID) 
+	if (data.type[index]==TYPE_RIGID) 
 		return;
 
 	cfloat3 xi = data.pos[index];
@@ -2014,6 +2014,7 @@ __global__ void DetectDispersedParticlesKernel(SimData_SPH data, int num_particl
 					vol_sum,
 					neighbor_count);
 			}
+	printf("neighbor count: %f\n", vol_sum);
 	vol_frac /= vol_sum;
 	data.spatial_status[index] = vol_frac;
 }
@@ -2239,5 +2240,74 @@ __global__ void PlasticProjection_Kernel(SimData_SPH data, int num_particles)
 			stress.data[k] *= fac;
 	}
 }
+
+
+__device__ void FindNeighborsCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	int& neighborcount
+)
+{
+	uint gridHash = calcGridHash(cell_index);
+	if (gridHash==GRID_UNDEF)
+		return;
+
+	uint startIndex = data.gridCellStart[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	uint endIndex = data.gridCellEnd[gridHash];
+	
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xij = xi - data.pos[j];;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
+			continue;
+		
+		if (neighborcount < NUM_NEIGHBOR) {
+			data.neighborlist[i*NUM_NEIGHBOR + neighborcount] = data.uniqueId[j];
+			neighborcount ++;
+		}
+		else {
+			printf("too many neighbors error.\n");
+		}
+		
+		
+	}
+}
+
+__global__ void InitializeDeformable_Kernel(SimData_SPH data,
+	int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	int neighborcount = 0;
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				FindNeighborsCell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					neighborcount);
+			}
+
+}
+
 
 };

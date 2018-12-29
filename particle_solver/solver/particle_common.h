@@ -13,6 +13,7 @@
 #define TYPE_GAS 7
 
 #define TYPE_NULL 99
+#define NUM_NEIGHBOR 40
 
 struct fluidvol {
 	cfloat3 xmin;

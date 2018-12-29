@@ -30,10 +30,11 @@ public:
 	vecf	host_inv_mass;
 	veci	host_unique_id;
 	veci	host_id_table;
-	vecf	host_rest_density; //rest density
-	vecf	host_vol_frac; //volume fraction
+	vecf	host_rest_density;
+	vecf	host_vol_frac;
 	vecf3	host_v_star;
 	vector<cmat3> host_cauchy_stress;
+	veci    host_localid;
 
 	SimData_SPH device_data;
 	
@@ -47,6 +48,11 @@ public:
 	int dump_count;
 	int case_id;
 	int run_mode;
+
+	//Counters, one for each type, such as fluid, deformable, rigid, etc.
+	//This is mainly used for deformables, to keep tracking the entry id of
+	//tht neighbor list.
+	int localid_counter[100];
 
 	float time;
 	

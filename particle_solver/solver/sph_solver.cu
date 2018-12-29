@@ -357,7 +357,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 			err_max = debug[i]>err_max ? debug[i] : err_max;
 			err_avg += debug[i];
 		}
-		err_avg /= hParam.num_fluidparticles;
+		err_avg /= hParam.num_fluid_p;
 		
 		
 		if (err_avg < ethres) break;
@@ -537,8 +537,14 @@ void PlasticProjection(SimData_SPH data, int num_particles) {
 }
 
 
+void InitializeDeformable(SimData_SPH data, int num_particles) {
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-
+	InitializeDeformable_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: initialize deformables");
+}
 
 
 

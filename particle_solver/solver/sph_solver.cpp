@@ -159,19 +159,7 @@ void SPHSolver::SolveDFSPH() {
 
 
 
-/*
-Still we solve multiphase model with divergence-free SPH.
-V_m denotes the volume-averaged velocity of each particle.
-*/
 
-void SPHSolver::SetupMultiphaseSPH() {
-	SetupFluidScene();
-	Sort();
-
-	EffectiveMass(device_data, num_particles);
-	DFSPHFactor_Multiphase(device_data, num_particles);
-	RigidParticleVolume(device_data, num_particles);
-}
 
 void SPHSolver::PhaseDiffusion_Host() {
 
@@ -455,20 +443,22 @@ void SPHSolver::ParseParam(char* xmlpath) {
 
 
 void SPHSolver::LoadParam(char* xmlpath) {
+
+	//Parameter initialization.
 	frame_count = 0;
 	dump_count = 0;
 	num_particles = 0;
 	num_fluid_particles = 0;
-	hParam.num_fluidparticles = 0;
+	hParam.num_fluid_p = 0;
+	for(int k=0; k<100; k++) 
+		localid_counter[k]=0;
+
 
 	ParseParam(xmlpath);
 
 	hParam.dx = hParam.smoothradius;
 	float sr = hParam.smoothradius;
 
-	//hParam.gridres = cint3(64, 64, 64);
-	//hParam.gridxmin.x = 0 - hParam.gridres.x / 2 * hParam.dx;
-	//hParam.gridxmin.z = 0 - hParam.gridres.z / 2 * hParam.dx;
 	hParam.gridres.x = roundf((hParam.gridxmax.x - hParam.gridxmin.x)/hParam.dx);
 	hParam.gridres.y = roundf((hParam.gridxmax.y - hParam.gridxmin.y)/hParam.dx);
 	hParam.gridres.z = roundf((hParam.gridxmax.z - hParam.gridxmin.z)/hParam.dx);
@@ -476,25 +466,19 @@ void SPHSolver::LoadParam(char* xmlpath) {
 
 	domainMin = hParam.gridxmin;
 	domainMax = hParam.gridxmax;
-	//setup kernels
+	
 
+	//Precompute kernel constant factors.
 	hParam.kpoly6 = 315.0f / (64.0f * 3.141592 * pow(sr, 9.0f));
 	hParam.kspiky =  15 / (3.141592 * pow(sr, 6.0f));
 	hParam.kspikydiff = -45.0f / (3.141592 * pow(sr, 6.0f));
 	hParam.klaplacian = 45.0f / (3.141592 * pow(sr, 6.0f));
 	hParam.kernel_cubic = 1/3.141593/pow(sr/2,3);
 	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
-	/*
-	for (int k=0; k<hParam.maxtypenum; k++) {
-		hParam.densArr[k] = hParam.restdensity * densratio[k];
-		hParam.viscArr[k] = hParam.viscosity * viscratio[k];
-	}
-	*/
-	//anisotropic kernels
 	
 	
 	//run_mode = SPH;
-	run_mode = DFSPH;
+	//run_mode = DFSPH;
 	run_mode = MSPH;
 	emit_particle_on = false;
 	dt = hParam.dt;
@@ -518,20 +502,30 @@ void SPHSolver::SetupHostBuffer() {
 cmat3 zero_mat3;
 
 int SPHSolver::AddDefaultParticle() {
+
+	//Single-phase properties.
 	host_x.push_back(cfloat3(0, 0, 0));
 	host_color.push_back(cfloat4(1, 1, 1, 1));
 	host_normal.push_back(cfloat3(0, 0, 0));
 	host_unique_id.push_back(host_x.size()-1);
 	host_v.push_back(cfloat3(0, 0, 0));
 	host_type.push_back(TYPE_FLUID);
+	
+	
+	//Multi-phase properties.
 	host_mass.push_back(0);
 	host_group.push_back(0);
 	host_rest_density.push_back(0);
 	host_v_star.push_back(cfloat3(0,0,0));
+	host_localid.push_back(0);
+	for (int t=0; t<hParam.maxtypenum; t++)
+		host_vol_frac.push_back(0);
+
+	
+	//Solid material properties.
 	host_cauchy_stress.push_back(zero_mat3);
 
-	for(int t=0; t<hParam.maxtypenum; t++)
-		host_vol_frac.push_back(0);
+	
 	
 	return host_x.size()-1;
 }
@@ -574,7 +568,7 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 		cfloat3 xmax = fluid_volumes[i].xmax;
 		int addcount=0;
 
-		float* vf    = fluid_volumes[i].volfrac;
+		float* vf = fluid_volumes[i].volfrac;
 		int group = fluid_volumes[i].group;
 		float spacing = hParam.spacing;
 		float pden = 0;
@@ -591,10 +585,12 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 					host_x[pid] = cfloat3(x, y, z);
 					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
 					host_type[pid] = TYPE_FLUID;
-					host_group[pid] = group;
 					
+					host_group[pid] = group;
 					host_mass[pid] = mp;
 					host_rest_density[pid] = pden;
+					host_localid[pid] = localid_counter[TYPE_FLUID]++;
+
 					for(int t=0;  t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
 
@@ -602,7 +598,7 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 				}
 
 		printf("fluid block No. %d has %d particles.\n", i, addcount);
-		hParam.num_fluidparticles += addcount;
+		hParam.num_fluid_p += addcount;
 	}
 }
 
@@ -631,10 +627,12 @@ void SPHSolver::AddDeformableVolumes() {
 					host_x[pid] = cfloat3(x, y, z);
 					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
 					host_type[pid] = TYPE_DEFORMABLE;
+					
 					host_group[pid] = group;
-
 					host_mass[pid] = mp;
 					host_rest_density[pid] = pden;
+					host_localid[pid] = localid_counter[TYPE_DEFORMABLE]++;
+					
 					for (int t=0; t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
 
@@ -642,7 +640,7 @@ void SPHSolver::AddDeformableVolumes() {
 				}
 
 		printf("Deformable block No. %d has %d particles.\n", i, addcount);
-		hParam.num_fluidparticles += addcount;
+		hParam.num_deformable_p += addcount;
 	}
 }
 
@@ -677,6 +675,15 @@ void SPHSolver::SetupFluidScene() {
 
 	SetupDeviceBuffer();
 	Copy2Device();
+}
+
+void SPHSolver::SetupMultiphaseSPH() {
+	SetupFluidScene();
+	Sort();
+
+	EffectiveMass(device_data, num_particles);
+	DFSPHFactor_Multiphase(device_data, num_particles);
+	RigidParticleVolume(device_data, num_particles);
 }
 
 void SPHSolver::Setup() {
@@ -737,18 +744,20 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.drift_v, num_pt*sizeof(cfloat3));
 	cudaMalloc(&device_data.vol_frac_gradient, num_pt*sizeof(cfloat3));
 	cudaMalloc(&device_data.effective_mass, maxpnum*sizeof(float));
-	cudaMalloc(&device_data.effective_density, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
 	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
+	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
 
 	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
-	cudaMalloc(&device_data.sorted_effective_density, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
+
 
 	int glen = hParam.gridres.prod();
 
