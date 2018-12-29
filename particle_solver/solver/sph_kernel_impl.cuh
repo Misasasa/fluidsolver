@@ -2247,7 +2247,8 @@ __device__ void FindNeighborsCell(
 	int i,
 	cfloat3 xi,
 	SimData_SPH& data,
-	int& neighborcount
+	int& neighborcount,
+	cmat3& kernel_tmp
 )
 {
 	uint gridHash = calcGridHash(cell_index);
@@ -2269,6 +2270,8 @@ __device__ void FindNeighborsCell(
 		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
 			continue;
 		
+
+		// build up neighbor list
 		if (neighborcount < NUM_NEIGHBOR) {
 			data.neighborlist[i*NUM_NEIGHBOR + neighborcount] = data.uniqueId[j];
 			neighborcount ++;
@@ -2277,6 +2280,9 @@ __device__ void FindNeighborsCell(
 			printf("too many neighbors error.\n");
 		}
 		
+		// construct rotation matrix
+
+
 		
 	}
 }
@@ -2292,7 +2298,8 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
-	int neighborcount = 0;
+	int neighborcount = 1;
+	cmat3 kernel_tmp;
 
 	for (int z=-1; z<=1; z++)
 		for (int y=-1; y<=1; y++)
@@ -2304,9 +2311,11 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 					index,
 					xi,
 					data,
-					neighborcount);
+					neighborcount,
+					kernel_tmp);
 			}
-
+	data.neighborlist[index*NUM_NEIGHBOR] = neighborcount - 1;
+	printf("%d %d\n", index, neighborcount - 1 );
 }
 
 

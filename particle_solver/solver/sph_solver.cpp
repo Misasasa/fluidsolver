@@ -684,6 +684,7 @@ void SPHSolver::SetupMultiphaseSPH() {
 	EffectiveMass(device_data, num_particles);
 	DFSPHFactor_Multiphase(device_data, num_particles);
 	RigidParticleVolume(device_data, num_particles);
+	InitializeDeformable(device_data, num_particles);
 }
 
 void SPHSolver::Setup() {
