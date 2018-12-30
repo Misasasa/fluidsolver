@@ -5,9 +5,6 @@
 #include "catpaw/objbuilder.h"
 #include "particle_common.h"
 
-#define EPSILON 0.000001
-
-#define MAX_OBJNUM 100
 
 namespace sph{
 
@@ -114,16 +111,27 @@ struct SimData_SPH {
 	float* phase_diffusion_lambda;
 	float* vol_frac_change;
 	float* spatial_status;
-	cmat3* strain_rate;
-	cmat3* cauchy_stress;
-	int* neighborlist; //store uniqueid
-	int* local_id; //id within the same type
+	
 
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* sorted_effective_mass;
+	
+
+
+	// Deformable Solid
+	cmat3* strain_rate;
+	cmat3* cauchy_stress;
+	int* neighborlist; //store uniqueid
+	int* local_id; //id within the same type
+	cmat3* correct_kernel;
+	cfloat3* x0; //initial coordinates
+	cmat3* rotation;
+
 	cmat3* sorted_cauchy_stress;
 	int*   sorted_local_id;
+
+
 
 	// Grid Sort
 	int* particleHash;   //cellid of each particle

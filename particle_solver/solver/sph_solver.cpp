@@ -95,11 +95,14 @@ void SPHSolver::Sort() {
 
 	reorderDataAndFindCellStart(device_data, num_particles, num_grid_cells);
 	
+	//Single Phase
 	cudaMemcpy(device_data.pos,		device_data.sortedPos,	num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.vel,		device_data.sortedVel,	num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.normal,	device_data.sortedNormal, num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.color,		device_data.sortedColor,	num_particles * sizeof(cfloat4), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.type,		device_data.sortedType,	num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
+	
+	//Multi Phase
 	cudaMemcpy(device_data.group,		device_data.sortedGroup,	num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.mass,		device_data.sortedMass,	num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.uniqueId,	device_data.sortedUniqueId, num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
@@ -107,11 +110,12 @@ void SPHSolver::Sort() {
 	cudaMemcpy(device_data.restDensity, device_data.sortedRestDensity, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.vFrac,		device_data.sortedVFrac,	num_particles * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-	//cudaMemcpy(device_data.effective_density, device_data.sorted_effective_density, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-
 	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice );
 	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
+	
+	//Deformable Solid
 	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, num_particles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, num_particles*sizeof(int), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
@@ -748,16 +752,24 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
 	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
+	
+	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
+	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
+	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
+	
+
+	// Deformable Solid
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
 	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
+	cudaMalloc(&device_data.correct_kernel, hParam.num_deformable_p*sizeof(cmat3));
+	cudaMalloc(&device_data.x0, hParam.num_deformable_p*sizeof(cfloat3));
+	cudaMalloc(&device_data.rotation, hParam.num_deformable_p*sizeof(cmat3));
 
-	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
-	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
-	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
+
 
 
 	int glen = hParam.gridres.prod();

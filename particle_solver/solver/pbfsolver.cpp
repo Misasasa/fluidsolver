@@ -288,8 +288,8 @@ void PBFSolver::emitParticle() {
 	srcpos = (x1+x2+x3)/3.0f; //barycentric center
 	//srcpos = cfloat3((float)rand()/RAND_MAX,10, (float)rand()/RAND_MAX);
 	//norm = cfloat3(0,-1,0);
-	float area = norm.mode()*3;
-	norm = norm / norm.mode();
+	float area = norm.Norm()*3;
+	norm = norm / norm.Norm();
 	float speed = 30;
 	
 	int frameinterval = roundf( 1 / (area*speed*hParam.dt));
@@ -866,7 +866,7 @@ int PBFSolver::loadClothObj(ObjContainer& oc, cmat4 materialMat) {
 		p3 = oc.trianglelist[i].plist[2];
 		cfloat3 a = hPos[obj.startpid + p1] - hPos[obj.startpid + p2];
 		cfloat3 b = hPos[obj.startpid + p1] - hPos[obj.startpid + p3];
-		float area = cross(a, b).mode()*0.5;
+		float area = cross(a, b).Norm()*0.5;
 		hMass[obj.startpid + p1] += area / 3.0f;
 		hMass[obj.startpid + p2] += area / 3.0f;
 		hMass[obj.startpid + p3] += area / 3.0f;
@@ -887,10 +887,10 @@ int PBFSolver::loadClothObj(ObjContainer& oc, cmat4 materialMat) {
 		cfloat3 p1p2, p1p3, p1p4;
 		p1p2 = hPos[p2] - hPos[p1];
 
-		if (p1p2.mode()>maxlen)
-			maxlen = p1p2.mode();
+		if (p1p2.Norm()>maxlen)
+			maxlen = p1p2.Norm();
 
-		float L0 = p1p2.mode();
+		float L0 = p1p2.Norm();
 		ec.L0 = L0;
 
 		if (ec.t2<0)
@@ -899,9 +899,9 @@ int PBFSolver::loadClothObj(ObjContainer& oc, cmat4 materialMat) {
 		p1p3 = hPos[p3] - hPos[p1];
 		p1p4 = hPos[p4] - hPos[p1];
 		cfloat3 temp = cross(p1p2, p1p3);
-		temp = temp / temp.mode();
+		temp = temp / temp.Norm();
 		cfloat3 temp1 = cross(p1p2, p1p4);
-		temp1 = temp1 / temp1.mode();
+		temp1 = temp1 / temp1.Norm();
 
 		float d = dot(temp, temp1);
 		d = fmin(1, fmax(d, -1));
@@ -1265,7 +1265,7 @@ void PBFSolver::addFluidSource() {
 	fs.srcpos = cfloat3(25, 80, 0);
 	fs.radius = 8;
 	fs.norm = cfloat3(-1, -1.5, 0);
-	fs.norm /= fs.norm.mode();
+	fs.norm /= fs.norm.Norm();
 	fs.speed = 20;
 	fs.type = FLUIDSRC_ROUND;
 	fs.interval = hParam.spacing / fs.speed/hParam.dt * 1.5;
@@ -1284,8 +1284,8 @@ void PBFSolver::fluidSrcEmit() {
 		cmat4 mm = IDENTITY_MAT;
 		RotateAboutZ(mm, acos(fs.norm.y));
 		cfloat3 xzmap = cfloat3(fs.norm.x, 0, fs.norm.z);
-		if (xzmap.mode()>EPSILON)
-			RotateAboutY(mm, -acos(fs.norm.x /xzmap.mode()));
+		if (xzmap.Norm()>EPSILON)
+			RotateAboutY(mm, -acos(fs.norm.x /xzmap.Norm()));
 
 		cfloat4 t(0, 1, 0, 1);
 		t = mm*t;

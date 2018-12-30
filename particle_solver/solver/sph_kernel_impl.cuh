@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 #include "sph_solver.cuh"
 #include "cuda_common.cuh"
+#include "custom_math.cuh"
 
 typedef unsigned int uint;
 namespace sph
@@ -24,7 +25,7 @@ SPH Kernel, Gradients, Laplacian
 
 __inline__ __device__ cfloat3 KernelGradient_Spiky(float smooth_radius,
 	cfloat3 xij) {
-	float d = xij.mode();
+	float d = xij.Norm();
 	float c = smooth_radius - d;
 	float factor = dParam.kspikydiff * c * c / d;
 	return xij * factor;
@@ -32,7 +33,7 @@ __inline__ __device__ cfloat3 KernelGradient_Spiky(float smooth_radius,
 
 __inline__ __device__ float Kernel_Cubic(float h, cfloat3 xij)
 {
-	float q = xij.mode()/h;
+	float q = xij.Norm()/h;
 	float fq;
 	if(q>=2) return 0;
 	if(q>=1) fq = (2-q)*(2-q)*(2-q)*0.25;
@@ -42,7 +43,7 @@ __inline__ __device__ float Kernel_Cubic(float h, cfloat3 xij)
 
 __inline__ __device__ cfloat3 KernelGradient_Cubic(float h, 
 	cfloat3 xij) {
-	float r = xij.mode();
+	float r = xij.Norm();
 	float q = r/h;
 	if(q>=2 || q<EPSILON) return cfloat3(0,0,0);
 	float df;
@@ -57,14 +58,6 @@ __inline__ __device__ cfloat3 KernelGradient_Cubic(float h,
 
 __device__ uint calcGridHash(cint3 cell_indices)
 {
-	/*
-	if(gridPos.x < 0) gridPos.x = 0;
-	if(gridPos.y < 0) gridPos.y = 0;
-	if(gridPos.z < 0) gridPos.z = 0;
-	if (gridPos.x >= dParam.gridres.x) gridPos.x = dParam.gridres.x-1;
-	if (gridPos.y >= dParam.gridres.y) gridPos.y = dParam.gridres.y-1;
-	if (gridPos.z >= dParam.gridres.z) gridPos.z = dParam.gridres.z-1;
-	*/
 	if(cell_indices.x<0 || cell_indices.x >= dParam.gridres.x ||
 		cell_indices.y<0 || cell_indices.y >= dParam.gridres.y ||
 		cell_indices.z<0 || cell_indices.z >= dParam.gridres.z)
@@ -188,7 +181,9 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sorted_effective_mass[index] = data.effective_mass[sortedIndex];
 		data.sorted_rho_stiff[index] = data.rho_stiff[sortedIndex];
 		data.sorted_div_stiff[index] = data.div_stiff[sortedIndex];
+		//Deformable Solid
 		data.sorted_cauchy_stress[index] = data.cauchy_stress[sortedIndex];
+		data.sorted_local_id[index] = data.local_id[sortedIndex];
 
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
@@ -843,7 +838,7 @@ __global__ void UpdateVelocities(SimData_SPH data, int num_particles) {
 	cfloat3 drift_acceleration = data.v_star[index] - data.vel[index];
 	
 	drift_acceleration /= dParam.dt;
-	float magnitude = drift_acceleration.mode();
+	float magnitude = drift_acceleration.Norm();
 	if(magnitude > dParam.acceleration_limit)
 		drift_acceleration = drift_acceleration / magnitude * dParam.acceleration_limit;
 	drift_acceleration = dParam.gravity - drift_acceleration;
@@ -1646,7 +1641,7 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	float dynamic_constant = dParam.drift_dynamic_diffusion; // 4*0.005/3/0.44
 
 	float rest_density = data.restDensity[index];
-	float accel_mode = drift_acceleration.mode();
+	float accel_mode = drift_acceleration.Norm();
 	float* vol_frac = data.vFrac + index*dParam.maxtypenum;
 
 	for (int k=0; k<dParam.maxtypenum; k++) {
@@ -2150,9 +2145,12 @@ __device__ void VelocityGradient_Cell(
 }
 
 
-//infinitesimal strain theory
-
-__device__ void updateStress(cmat3& nabla_v, cmat3& stress, float dt) 
+/*
+Update Cauchy stress directly with SPH velocity gradient.
+This approach is unstable, and requires large artificial
+viscosity.
+*/
+__device__ void UpdateStressWithVGrad(cmat3& nabla_v, cmat3& stress, float dt)
 {
 	cmat3 nabla_vT;
 	mat3transpose(nabla_v, nabla_vT);
@@ -2176,8 +2174,6 @@ __device__ void updateStress(cmat3& nabla_v, cmat3& stress, float dt)
 	strain_rate.data[0] += p;
 	strain_rate.data[4] += p;
 	strain_rate.data[8] += p;
-	
-	
 
 	cmat3 stress_rate = strain_rate;
 	mat3prod(rotation_rate, stress, nabla_vT);
@@ -2190,8 +2186,7 @@ __device__ void updateStress(cmat3& nabla_v, cmat3& stress, float dt)
 	}
 }
 
-
-__global__ void UpdateSolidState_Kernel(SimData_SPH data, int num_particles)
+__global__ void UpdateSolidStateVGrad_Kernel(SimData_SPH data, int num_particles)
 {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles)
@@ -2216,9 +2211,119 @@ __global__ void UpdateSolidState_Kernel(SimData_SPH data, int num_particles)
 					nabla_v);
 			}
 	
-	updateStress(nabla_v, data.cauchy_stress[index], dParam.dt);
+	UpdateStressWithVGrad(nabla_v, data.cauchy_stress[index], dParam.dt);
 }
 
+
+
+
+
+/*
+Compute deformation gradient F.
+Extract the rotation part R.
+Compute the strain \epsilon and 
+the first Piola-Kirchhoff stress P accordingly.
+*/
+
+
+
+
+
+__device__ void DeformationGradient_Cell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cmat3& F
+) {
+	uint gridHash = calcGridHash(cell_index);
+	if (gridHash==GRID_UNDEF)
+		return;
+
+	uint startIndex = data.gridCellStart[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	uint endIndex = data.gridCellEnd[gridHash];
+	
+	float volj = dParam.spacing*dParam.spacing*dParam.spacing;
+	cfloat3 nablaw_ij;
+	int localid_i = data.local_id[i];
+	cmat3& L = data.correct_kernel[localid_i];
+
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xij = xi - data.pos[j];;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
+			continue;
+
+		cfloat3 xji = xij * (-1) * volj;
+		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
+		mvprod(L, nablaw, nablaw);
+		F.Add(TensorProduct(xji, nablaw));
+	}
+}
+
+__device__ void ExtractRotation(
+	cmat3& A, cmat3& R, int maxIter
+)
+{
+	cmat3 res, expw;
+	float w;
+	for (uint iter=0; iter<maxIter; iter++) {
+		cfloat3 omega = cross(R.Col(0), A.Col(0))
+			+ cross(R.Col(1), A.Col(1)) + cross(R.Col(2), A.Col(2));
+		float denom = fabs(dot(R.Col(0), A.Col(0))
+			+ dot(R.Col(1), A.Col(1)) + dot(R.Col(2), A.Col(2))) + 1e-9;
+		omega *= 1.0/denom;
+		w = omega.Norm();
+		if (w < 1e-9)
+			break;
+
+		AxisAngle2Matrix(omega, w, expw);
+		mat3prod(expw, R, res);
+		R = res;
+	}
+
+	//printf("rotation error: %f\n", w);
+}
+
+
+__global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	cmat3 F;
+	cmat3& R = data.rotation[data.local_id[index]];
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				DeformationGradient_Cell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					F);
+			}
+	
+	//Extract rotation R from F.
+	ExtractRotation(F, R, 10);
+
+	//Compute strain epsilon.
+
+}
 
 
 
@@ -2262,7 +2367,9 @@ __device__ void FindNeighborsCell(
 	float sr = dParam.smoothradius;
 	float sr2 = sr*sr;
 	uint endIndex = data.gridCellEnd[gridHash];
-	
+	float volj = dParam.spacing*dParam.spacing*dParam.spacing;
+	int localid_i = data.local_id[i];
+
 	for (uint j = startIndex; j < endIndex; j++)
 	{
 		cfloat3 xij = xi - data.pos[j];;
@@ -2273,7 +2380,7 @@ __device__ void FindNeighborsCell(
 
 		// build up neighbor list
 		if (neighborcount < NUM_NEIGHBOR) {
-			data.neighborlist[i*NUM_NEIGHBOR + neighborcount] = data.uniqueId[j];
+			data.neighborlist[localid_i*NUM_NEIGHBOR + neighborcount] = data.uniqueId[j];
 			neighborcount ++;
 		}
 		else {
@@ -2281,9 +2388,9 @@ __device__ void FindNeighborsCell(
 		}
 		
 		// construct rotation matrix
-
-
-		
+		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
+		xij *= (-1) * volj;
+		kernel_tmp.Add(TensorProduct(nablaw, xij));
 	}
 }
 
@@ -2298,6 +2405,7 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
+	int localid_i = data.local_id[index];
 	int neighborcount = 1;
 	cmat3 kernel_tmp;
 
@@ -2314,8 +2422,21 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 					neighborcount,
 					kernel_tmp);
 			}
-	data.neighborlist[index*NUM_NEIGHBOR] = neighborcount - 1;
-	printf("%d %d\n", index, neighborcount - 1 );
+	data.neighborlist[localid_i*NUM_NEIGHBOR] = neighborcount - 1;
+	
+	//printf("%d %d\n", index, neighborcount - 1 );
+	/*printf("%f %f %f\n%f %f %f\n%f %f %f\n", 
+		kernel_tmp.data[0], kernel_tmp.data[1], kernel_tmp.data[2],
+		kernel_tmp.data[3], kernel_tmp.data[4], kernel_tmp.data[5], 
+		kernel_tmp.data[6], kernel_tmp.data[7], kernel_tmp.data[8]);*/
+
+	data.correct_kernel[localid_i] = kernel_tmp.Inv();
+	data.x0[localid_i] = xi;
+	
+	//Set rotation matrix R to identitiy matrix.
+	cmat3& R = data.rotation[localid_i];
+	R.Set(0.0);
+	R[0][0] = R[1][1] = R[2][2] = 1;
 }
 
 

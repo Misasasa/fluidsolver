@@ -7,6 +7,7 @@
 
 typedef unsigned int uint;
 
+#define EPSILON 1e-10
 #define GRID_UNDEF 99999999
 
 inline uint iDivUp(uint a, uint b)

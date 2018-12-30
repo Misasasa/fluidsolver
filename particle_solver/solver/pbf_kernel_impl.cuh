@@ -13,6 +13,7 @@ SimParam hParam;
 __device__ SimParam dParam; 
 
 
+
 __device__ uint calcGridHash(cint3 gridPos)
 {
 	gridPos.x = gridPos.x & (dParam.gridres.x - 1);  // wrap grid, assumes size is power of 2
@@ -486,7 +487,7 @@ __global__ void updatePosD(
 
 	data.pos[index] += data.deltaPos[index] * dParam.global_relaxation;
 
-	/*if (data.type[index]==TYPE_FLUID && data.deltaPos[index].mode()>EPSILON)
+	/*if (data.type[index]==TYPE_FLUID && data.deltaPos[index].Norm()>EPSILON)
 		printf("2: %f %f %f, %f %f %f\n", 
 			data.deltaPos[index].x,
 			data.deltaPos[index].y,
@@ -624,8 +625,8 @@ __global__ void calcEdgeConsD(
 
 	cfloat3 deltap1, deltap2;
 	cfloat3 p2p1 = p1 - p2;
-	float c = (p2p1.mode() - ec.L0)/p2p1.mode();
-	//float c = (p2p1.mode() - ec.L0);
+	float c = (p2p1.Norm() - ec.L0)/p2p1.Norm();
+	//float c = (p2p1.Norm() - ec.L0);
 		
 	if (c>0) {
 		c *= dParam.stretchStiff;
@@ -652,9 +653,9 @@ __global__ void calcEdgeConsD(
 		p3 = p3 - p1;
 		p4 = p4 - p1;
 		cfloat3 _n1 = cross(p2, p3);
-		cfloat3 n1 = _n1 / _n1.mode();
+		cfloat3 n1 = _n1 / _n1.Norm();
 		cfloat3 _n2 = cross(p2, p4);
-		cfloat3 n2 = _n2 / _n2.mode();
+		cfloat3 n2 = _n2 / _n2.Norm();
 		float d = dot(n1, n2);
 		if (d>1)
 			d = 1;
@@ -662,8 +663,8 @@ __global__ void calcEdgeConsD(
 			d = -1;
 
 		float t1, t2;
-		t1 = cross(p2, p3).mode();
-		t2 = cross(p2, p4).mode();
+		t1 = cross(p2, p3).Norm();
+		t2 = cross(p2, p4).Norm();
 
 		cfloat3 q3 = (cross(p2, n2) + cross(n1, p2)*d) / t1;
 		cfloat3 q4 = (cross(p2, n1) + cross(n2, p2)*d) / t2;
@@ -671,10 +672,10 @@ __global__ void calcEdgeConsD(
 			- (cross(p4, n1) + cross(n2, p4)*d) / t2;
 		cfloat3 q1 = q2*(-1) - q3 - q4;
 
-		float denom = w1* pow(q1.mode(), 2)
-			+ w2 * pow(q2.mode(), 2)
-			+ w3 * pow(q3.mode(), 2)
-			+ w4 * pow(q4.mode(), 2);
+		float denom = w1* pow(q1.Norm(), 2)
+			+ w2 * pow(q2.Norm(), 2)
+			+ w3 * pow(q3.Norm(), 2)
+			+ w4 * pow(q4.Norm(), 2);
 
 		float nom = -sqrt(1 - d*d)  * (acos(d) - ec.Phi0);
 		float factor = nom / fmax(denom, 0.000001f);
@@ -728,7 +729,7 @@ __global__ void calcFacetVolD(SimData data, int numTriangles) {
 	temp = cross(x1, x2);
 	float vol = dot(temp, x3) / 6.0f;
 	data.facetVol[index] = vol;
-	data.facetArea[index] = cross(x1 - x2, x1 - x3).mode() * 0.5f;
+	data.facetArea[index] = cross(x1 - x2, x1 - x3).Norm() * 0.5f;
 }
 
 
@@ -754,8 +755,8 @@ __global__ void calcVolDeltaPosD(
 	bool jetGas = data.objs[t.objectId].bJetGas;
 
 	cfloat3 norm = cross(x2 - x1, x3 - x1);
-	if (norm.mode()>EPSILON) {
-		norm = norm / norm.mode() * dx;
+	if (norm.Norm()>EPSILON) {
+		norm = norm / norm.Norm() * dx;
 	}
 	else {
 		norm.Set(0,0,0);
@@ -799,7 +800,7 @@ __device__ void collideCell(
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
-				float d = xij.mode();
+				float d = xij.Norm();
 
 				if (data.type[index] == TYPE_FLUID){
 					if(data.type[j] == TYPE_FLUID || data.type[j]==TYPE_EMITTER)
@@ -915,10 +916,10 @@ __device__ void pointTriangleCollide(
 	cfloat3 v2 = pos - vertices[0];
 	
 	cfloat3 normal = cross(v0,v1);
-	if(normal.mode()<EPSILON) //singular
+	if(normal.Norm()<EPSILON) //singular
 		return;
 
-	normal /= normal.mode();
+	normal /= normal.Norm();
 	float distance = dot(normal, v2);
 	float originDistance = dot(normal, data.oldPos[index]-vertices[0]);
 	bool bAbove = true;
@@ -1016,10 +1017,10 @@ __device__ void pointTriangleCollide(
 
 		cfloat3 deltap1, deltap2, deltap3, deltap;
 		
-		denom = w1* pow(q1.mode(), 2)
-			+ w2 * pow(q2.mode(), 2)
-			+ w3 * pow(q3.mode(), 2)
-			+ w * pow(q.mode(), 2);
+		denom = w1* pow(q1.Norm(), 2)
+			+ w2 * pow(q2.Norm(), 2)
+			+ w3 * pow(q3.Norm(), 2)
+			+ w * pow(q.Norm(), 2);
 		if (denom<EPSILON) {
 			printf("denom zero error 2!\n");
 			return;
@@ -1116,8 +1117,8 @@ __global__ void calcFacetNormalD(SimData data, int numTriangles) {
 	x3 = data.pos[pid[2]];
 
 	cfloat3 norm = cross(x2 - x1, x3 - x1);
-	if (norm.mode()>EPSILON)
-		norm = norm / norm.mode();
+	if (norm.Norm()>EPSILON)
+		norm = norm / norm.Norm();
 	else
 		norm.Set(0, 0, 0);
 
@@ -1131,7 +1132,7 @@ __global__ void calcParticleNormalD(SimData data, int numParticles) {
 	if (index >= numParticles)	return;
 	if (data.type[index] != TYPE_CLOTH) return;
 
-	data.normal[index] = data.normal[index] / data.normal[index].mode();
+	data.normal[index] = data.normal[index] / data.normal[index].Norm();
 }
 
 
@@ -1202,7 +1203,7 @@ __global__ void resetEdgeConsXD(SimData data, int numEdgeCons) {
 	cfloat3 p1 = data.pos[pid1];
 	cfloat3 p2 = data.pos[pid2];
 	cfloat3 p2p1 = p1-p2;
-	float c = p2p1.mode() - ec.L0;
+	float c = p2p1.Norm() - ec.L0;
 	//if(c>=0)
 	ecVar.stiff1 = dParam.stretchComp;
 	//else
@@ -1235,7 +1236,7 @@ __global__ void calcEdgeConsXD(SimData data, int numEdgeCons) {
 	cfloat3 deltap1, deltap2;
 	float dlambda;
 	cfloat3 p2p1 = p1-p2;
-	float c = (p2p1.mode() - ec.L0)/ec.L0;
+	float c = (p2p1.Norm() - ec.L0)/ec.L0;
 	if(c<EPSILON)
 		c=0;
 	float stiff = ecVar.stiff1;
@@ -1243,7 +1244,7 @@ __global__ void calcEdgeConsXD(SimData data, int numEdgeCons) {
 
 	dlambda = (c*(-1) - stiff * ecVar.lambda1)/((w1+w2)/ec.L0/ec.L0 + stiff);
 	ecVar.lambda1 += dlambda;
-	p2p1 = p2p1 / p2p1.mode(); //normalize
+	p2p1 = p2p1 / p2p1.Norm(); //normalize
 	deltap1 = p2p1 * dlambda * w1/ec.L0;
 	deltap2 = p2p1 * dlambda*(-1) * w2/ec.L0;
 
@@ -1262,9 +1263,9 @@ __global__ void calcEdgeConsXD(SimData data, int numEdgeCons) {
 		p3 = p3 - p1;
 		p4 = p4 - p1;
 		cfloat3 _n1 = cross(p2, p3);
-		cfloat3 n1 = _n1 / _n1.mode();
+		cfloat3 n1 = _n1 / _n1.Norm();
 		cfloat3 _n2 = cross(p2, p4);
-		cfloat3 n2 = _n2 / _n2.mode();
+		cfloat3 n2 = _n2 / _n2.Norm();
 		float d = dot(n1, n2);
 		if (d>1)
 			d=1;
@@ -1272,8 +1273,8 @@ __global__ void calcEdgeConsXD(SimData data, int numEdgeCons) {
 			d=-1;
 
 		float t1, t2;
-		t1 = cross(p2, p3).mode();
-		t2 = cross(p2, p4).mode();
+		t1 = cross(p2, p3).Norm();
+		t2 = cross(p2, p4).Norm();
 
 		cfloat3 q3 = (cross(p2, n2)+cross(n1, p2)*d) / t1;
 		cfloat3 q4 = (cross(p2, n1)+cross(n2, p2)*d) / t2;
@@ -1282,10 +1283,10 @@ __global__ void calcEdgeConsXD(SimData data, int numEdgeCons) {
 		cfloat3 q1 = q2*(-1) - q3 - q4;
 
 		stiff = ecVar.stiff2 / dParam.dt / dParam.dt;
-		float denom = w1* pow(q1.mode(), 2)
-			+ w2 * pow(q2.mode(), 2)
-			+ w3 * pow(q3.mode(), 2)
-			+ w4 * pow(q4.mode(), 2);
+		float denom = w1* pow(q1.Norm(), 2)
+			+ w2 * pow(q2.Norm(), 2)
+			+ w3 * pow(q3.Norm(), 2)
+			+ w4 * pow(q4.Norm(), 2);
 		denom += stiff;
 		float nom = -sqrt(1-d*d)  * (acos(d) - ec.Phi0) - stiff * ecVar.lambda2;
 		dlambda = nom / denom;
@@ -1338,11 +1339,11 @@ __global__ void calcRubberEdgeConsXD(SimData data, int numEdgeCons) {
 	cfloat3 deltap1, deltap2;
 	float dlambda;
 	cfloat3 p2p1 = p1-p2;
-	float L = p2p1.mode();
+	float L = p2p1.Norm();
 	float F;
 	float dFdx;
 
-	float c = (p2p1.mode() - ec.L0);
+	float c = (p2p1.Norm() - ec.L0);
 	
 	float stiff = ecVar.stiff1;
 	stiff /= dParam.dt*dParam.dt;
@@ -1363,7 +1364,7 @@ __global__ void calcRubberEdgeConsXD(SimData data, int numEdgeCons) {
 	if (i==0) {
 		printf("%f %f %f\n",F,L);
 	}
-	p2p1 = p2p1 / p2p1.mode(); //normalize
+	p2p1 = p2p1 / p2p1.Norm(); //normalize
 	deltap1 = p2p1 * dlambda * w1 *(-1);
 	deltap2 = p2p1 * dlambda * w2;
 	
@@ -1396,7 +1397,7 @@ __device__ void waterAbsorbCell(cint3 gridPos, int index, cfloat3 pos, SimData d
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
-				float d = xij.mode();
+				float d = xij.Norm();
 		
 				if (d >= cd)
 					continue;
@@ -1488,7 +1489,7 @@ __device__ void waterDiffusePredictCell(cint3 gridPos, int index, cfloat3 pos, S
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
-				float d = xij.mode();
+				float d = xij.Norm();
 
 				if (d >= cd)
 					continue;
@@ -1596,7 +1597,7 @@ __device__ void waterDiffuseCell(cint3 gridPos, int index, cfloat3 pos, SimData 
 			{
 				cfloat3 pos2 = data.pos[j];
 				cfloat3 xij = pos - pos2;
-				float d = xij.mode();
+				float d = xij.Norm();
 
 				if (d >= cd)
 					continue;

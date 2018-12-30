@@ -522,7 +522,7 @@ void UpdateSolidState(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	UpdateSolidState_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	UpdateSolidStateVGrad_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: detect dispersed particles");
 }

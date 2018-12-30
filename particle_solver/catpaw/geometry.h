@@ -23,6 +23,8 @@ inline float cmax(float a, float b) {
 	return a > b ? a : b;
 }
 
+
+
 struct cfloat2 {
 	float x,y;
 	cfloat2(){}
@@ -42,9 +44,14 @@ struct cfloat2 {
 	}
 };
 
+
 inline float dot(cfloat2& a, cfloat2& b) {
 	return a.x*b.x + a.y*b.y;
 }
+
+
+
+
 
 struct cfloat3 {
 	float x, y, z;
@@ -99,7 +106,7 @@ struct cfloat3 {
 	HDFUNC inline float minx() {
 		return cmin(x, cmin(y, z));
 	}
-	HDFUNC inline float mode() {
+	HDFUNC inline float Norm() {
 		return sqrt(x*x+y*y+z*z);
 	}
 	HDFUNC inline float square() {
@@ -127,7 +134,12 @@ HDFUNC inline float dot(cfloat3& a,cfloat3& b){
 	return a.x*b.x+a.y*b.y+a.z*b.z;
 }
 
+
 float angle(cfloat3& a,cfloat3& b);
+
+
+
+
 
 struct cint3 {
 	int x, y, z;
@@ -145,6 +157,7 @@ struct cint3 {
 	HDFUNC int prod() {
 		return x*y*z;
 	}
+	
 	HDFUNC cint3 operator + (cint3& b) {
 		return cint3(x+b.x, y+b.y, z+b.z);
 	}
@@ -159,7 +172,11 @@ HDFUNC inline cint3 CINT3(cfloat3 a) {
 
 
 
-struct cmat3 {
+
+
+
+struct cmat3 
+{
 	float data[9];
 	HDFUNC cmat3() {
 		for(int i=0;i<9;i++) data[i]=0;
@@ -182,6 +199,14 @@ struct cmat3 {
 	HDFUNC float* operator[](int i){
 		return &data[i*3];
 	}
+	HDFUNC cmat3 operator+(cmat3& b) {
+		cmat3 res;
+		for (int k=0; k<9; k++) {
+			res.data[k]=data[k]+b.data[k];
+		}
+		return res;
+	}
+
 	HDFUNC float Det() {
 		return data[0]*(data[4]*data[8]-data[5]*data[7]) + data[1]*(data[5]*data[6]-data[3]*data[8]) + data[2]*(data[3]*data[7]-data[4]*data[6]);
 	}
@@ -199,14 +224,23 @@ struct cmat3 {
 		inv[2][2] = (data[0]*data[4]-data[1]*data[3])/det;
 		return inv;
 	}
+
+	HDFUNC void Add(cmat3& b) {
+		for(int k=0; k<9; k++)
+			data[k] = data[k] + b.data[k];
+	}
+
+	HDFUNC cfloat3 Col(int n) {
+		if (n<0 || n>2) {
+			printf("Illegal Matrix Column Visit.\n");
+			return cfloat3(0,0,0);
+		}
+		return cfloat3(data[n], data[3+n], data[6+n]);
+	}
 };
 
-//HDFUNC void mat3add(cmat3& a, cmat3& b, cmat3& c);
-//HDFUNC void mat3sub(cmat3& a, cmat3& b, cmat3& c);
-//HDFUNC void mat3prod(cmat3& a, cmat3& b, cmat3& c);
-//HDFUNC void mat3transpose(cmat3& a, cmat3& b);
 
-HDFUNC __inline__ cmat3 tensor_prod(cfloat3& a, cfloat3& b) {
+HDFUNC __inline__ cmat3 TensorProduct(cfloat3& a, cfloat3& b) {
 	cmat3 res;
 	res[0][0] = a.x*b.x; res[0][1] = a.x*b.y; res[0][2] = a.x*b.z;
 	res[1][0] = a.y*b.x; res[1][1] = a.y*b.y; res[1][2] = a.y*b.z;
@@ -246,7 +280,11 @@ HDFUNC __inline__ void mat3transpose(cmat3& a, cmat3& b) {
 	b=tmp;
 }
 
-//cmat3 * cfloat3
+/*
+Compute the product of cmat3 m and cfloat3 v,
+storing the result into cfloat3 c.
+c and v can be the same vector.
+*/
 HDFUNC __inline__ void  mvprod(cmat3& m, cfloat3& v, cfloat3& c) {
 	cfloat3 tmp;
 	tmp.x = m.data[0]*v.x + m.data[1]*v.y + m.data[2]*v.z;
@@ -255,15 +293,41 @@ HDFUNC __inline__ void  mvprod(cmat3& m, cfloat3& v, cfloat3& c) {
 	c=tmp;
 }
 
-HDFUNC void mvprod(cmat3& m, cfloat3& v, cfloat3& c);
+
 
 void RotateX(cfloat3& a, float b);
 void RotateY(cfloat3& a, float b);
 void RotateZ(cfloat3& a, float b);
 void RotateXYZ(cfloat3& a, cfloat3& xyz);
 
+#define EPSILON 1e-10
 
+HDFUNC __inline__ void AxisAngle2Matrix(cfloat3 axis, float angle, cmat3& mat)
+{
+	//Do the normalization if needed.
+	float l = axis.Norm();
+	if (fabs(l-1)>EPSILON)
+		axis /= l;
+	float s = sin(angle);
+	float c = cos(angle);
+	float t = 1 - c;
+	mat[0][0] = t*axis.x*axis.x + c;
+	mat[1][1] = t*axis.y*axis.y + c;
+	mat[2][2] = t*axis.z*axis.z + c;
 
+	float tmp1 = axis.x*axis.y*t;
+	float tmp2 = axis.z*s;
+	mat[1][0] = tmp1+tmp2;
+	mat[0][1] = tmp1-tmp2;
+	tmp1 = axis.x*axis.z*t;
+	tmp2 = axis.y*s;
+	mat[2][0] = tmp1 - tmp2;
+	mat[0][2] = tmp1 + tmp2;
+	tmp1 = axis.y*axis.z*t;
+	tmp2 = axis.x*s;
+	mat[2][1] = tmp1+tmp2;
+	mat[1][2] = tmp1-tmp2;
+}
 
 
 
