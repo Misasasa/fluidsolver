@@ -2287,9 +2287,49 @@ __device__ void ExtractRotation(
 		mat3prod(expw, R, res);
 		R = res;
 	}
-
-	//printf("rotation error: %f\n", w);
 }
+
+__device__ void RotatedDeformationGradient_Cell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cmat3& rotated_F
+) {
+	uint gridHash = calcGridHash(cell_index);
+	if (gridHash==GRID_UNDEF)
+		return;
+
+	uint startIndex = data.gridCellStart[gridHash];
+	if (startIndex == 0xffffffff)
+		return;
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	uint endIndex = data.gridCellEnd[gridHash];
+
+	float volj = dParam.spacing*dParam.spacing*dParam.spacing;
+	cfloat3 nablaw_ij;
+	int localid_i = data.local_id[i];
+	cmat3& L = data.correct_kernel[localid_i];
+	cmat3& R = data.rotation[localid_i];
+	cmat3 RL;
+	mat3prod(R,L,RL);
+
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xij = xi - data.pos[j];;
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
+			continue;
+
+		cfloat3 xji = xij * (-1) * volj;
+		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
+		mvprod(RL, nablaw, nablaw);
+		rotated_F.Add(TensorProduct(xji, nablaw));
+	}
+}
+
 
 
 __global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
@@ -2306,22 +2346,44 @@ __global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
 	cmat3& R = data.rotation[data.local_id[index]];
 
 	for (int z=-1; z<=1; z++)
-		for (int y=-1; y<=1; y++)
-			for (int x=-1; x<=1; x++)
-			{
-				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
-				DeformationGradient_Cell(
-					neighbor_cell_index,
-					index,
-					xi,
-					data,
-					F);
-			}
+	for (int y=-1; y<=1; y++)
+	for (int x=-1; x<=1; x++)
+	{
+		cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+		DeformationGradient_Cell(
+			neighbor_cell_index,
+			index,
+			xi,
+			data,
+			F);
+	}
 	
 	//Extract rotation R from F.
 	ExtractRotation(F, R, 10);
 
+	//Rotated Deformation Gradient F_rotated.
+	//Stored in F.
+	for (int z=-1; z<=1; z++)
+	for (int y=-1; y<=1; y++)
+	for (int x=-1; x<=1; x++)
+	{
+		cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+		RotatedDeformationGradient_Cell(
+			neighbor_cell_index,
+			index,
+			xi,
+			data,
+			F);
+	}
+
 	//Compute strain epsilon.
+	cmat3 F_T;
+	mat3transpose(F, F_T);
+	cmat3 epsilon;
+	epsilon = (F+F_T) * 0.5;
+	epsilon[0][0] -= 1;
+	epsilon[1][1] -= 1;
+	epsilon[2][2] -= 1;
 
 }
 
@@ -2387,7 +2449,7 @@ __device__ void FindNeighborsCell(
 			printf("too many neighbors error.\n");
 		}
 		
-		// construct rotation matrix
+		// kernel correction matrix
 		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
 		xij *= (-1) * volj;
 		kernel_tmp.Add(TensorProduct(nablaw, xij));

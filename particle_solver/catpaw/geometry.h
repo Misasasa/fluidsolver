@@ -206,6 +206,13 @@ struct cmat3
 		}
 		return res;
 	}
+	HDFUNC cmat3 operator*(float b) {
+		cmat3 res;
+		for (int k=0; k<9; k++) {
+			res.data[k] = data[k] * b;
+		}
+		return res;
+	}
 
 	HDFUNC float Det() {
 		return data[0]*(data[4]*data[8]-data[5]*data[7]) + data[1]*(data[5]*data[6]-data[3]*data[8]) + data[2]*(data[3]*data[7]-data[4]*data[6]);
