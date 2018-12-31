@@ -132,7 +132,6 @@ struct SimData_SPH {
 	int*   sorted_local_id;
 
 
-
 	// Grid Sort
 	int* particleHash;   //cellid of each particle
 	int* particleIndex;  //particle index, sorted in process

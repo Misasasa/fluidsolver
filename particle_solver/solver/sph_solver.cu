@@ -512,7 +512,7 @@ void ComputeTension(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	ComputeTension_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	ComputeTensionWithP_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: detect dispersed particles");
 
@@ -522,9 +522,11 @@ void UpdateSolidState(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	UpdateSolidStateVGrad_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	//UpdateSolidStateVGrad_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	UpdateSolidStateF_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: detect dispersed particles");
+	getLastCudaError("Kernel failed: update solid state");
 }
 
 void PlasticProjection(SimData_SPH data, int num_particles) {

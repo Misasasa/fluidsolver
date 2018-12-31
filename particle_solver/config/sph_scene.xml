@@ -1,7 +1,7 @@
 <Fluid>
 	<AccelLimit>	1500.0		</AccelLimit>
 	<VelLimit>		100		</VelLimit>
-	<Gravity>	0, -9.8, 0		</Gravity>
+	<Gravity>	0, 0, 0		</Gravity>
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
@@ -174,15 +174,15 @@
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 2 </SmoothRatio>
 	
-	<Viscosity>	 0.05	</Viscosity>
+	<Viscosity>	 0.00	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 	<DensityArray> 500,1000,1500 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.05,  0.015,  0.0	</VolMin>
-		<VolMax>	0.05,  0.115,  0.1	</VolMax>
+		<VolMin>	-0.05,  0.1,  0.0	</VolMin>
+		<VolMax>	0.05,  0.2,  0.1	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
@@ -194,7 +194,7 @@
 	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 
-	<YoungsModulus> 2000 </YoungsModulus>
+	<YoungsModulus> 10000 </YoungsModulus>
 	<PoissonsRatio> 0.3 </PoissonsRatio>
 	<Yield> 1000000 </Yield>
 </MultiScene>

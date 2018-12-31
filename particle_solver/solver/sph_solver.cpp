@@ -13,22 +13,26 @@ extern SimParam_SPH hParam;
 void SPHSolver::Copy2Device() {
 	num_particles = host_x.size();
 
+	//Single phase properties.
 	cudaMemcpy(device_data.pos,    host_x.data(),    num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.color,  host_color.data(), num_particles * sizeof(cfloat4), cudaMemcpyHostToDevice);
-
 	cudaMemcpy(device_data.vel,	 host_v.data(),    num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.normal, host_normal.data(), num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.type,   host_type.data(),   num_particles * sizeof(int),     cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.group,  host_group.data(),  num_particles * sizeof(int),     cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.mass,   host_mass.data(),   num_particles * sizeof(float),   cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.uniqueId, host_unique_id.data(), num_particles * sizeof(int), cudaMemcpyHostToDevice);
 
+
+	//Multi phase properties.
+	cudaMemcpy(device_data.group,  host_group.data(),  num_particles * sizeof(int),     cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.mass,   host_mass.data(),   num_particles * sizeof(float),   cudaMemcpyHostToDevice);
 	int num_particlesT = num_particles * hParam.maxtypenum;
 	cudaMemcpy(device_data.vFrac, host_vol_frac.data(), num_particlesT * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.restDensity, host_rest_density.data(), num_particles * sizeof(float), cudaMemcpyHostToDevice);
-
-	cudaMemcpy(device_data.cauchy_stress, host_cauchy_stress.data(), num_particles*sizeof(cmat3), cudaMemcpyHostToDevice);
 	
+	//Deformable Solid properties.
+	//cudaMemcpy(device_data.cauchy_stress, host_cauchy_stress.data(), num_particles*sizeof(cmat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.local_id, host_localid.data(),num_particles*sizeof(int), cudaMemcpyHostToDevice);
+
 	CopyParam2Device();
 }
 
@@ -193,10 +197,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 
 	EnforceDensity_Multiphase(device_data, num_particles, 4, 1, false,  true);
 	//printf("density solve %f\n", clock.tack()*1000); clock.tick();
-
-	//update deformation gradient F
-	UpdateSolidState(device_data, num_particles);
-
+	
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
@@ -205,8 +206,11 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
 
 
+	//update deformation gradient F
+	UpdateSolidState(device_data, num_particles);
+
 	//plastic projection
-	PlasticProjection(device_data, num_particles);
+	//PlasticProjection(device_data, num_particles);
 	
 
 	//PhaseDiffusion_Host();
@@ -431,7 +435,7 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.Yield = reader.GetFloat("Yield");
 	hParam.solidG = E/2/(1+v);
 	hParam.solidK = E/3/(1-2*v);
-
+	printf("G,K: %f %f\n", hParam.solidG, hParam.solidK);
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -614,6 +618,10 @@ void SPHSolver::AddDeformableVolumes() {
 		cfloat3 xmax = fluid_volumes[i].xmax;
 		int addcount=0;
 
+		float yc = (xmax.y+xmin.y)*0.5;
+		float xc = (xmax.x+xmin.x)*0.5;
+		float w = 50;
+
 		float* vf    = fluid_volumes[i].volfrac;
 		int group = fluid_volumes[i].group;
 		float spacing = hParam.spacing;
@@ -632,6 +640,10 @@ void SPHSolver::AddDeformableVolumes() {
 					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
 					host_type[pid] = TYPE_DEFORMABLE;
 					
+					float dx=x-xc;
+					float dy=y-yc;
+					host_v[pid].Set(-dy*w,dx*w,0);
+
 					host_group[pid] = group;
 					host_mass[pid] = mp;
 					host_rest_density[pid] = pden;
