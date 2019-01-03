@@ -1,6 +1,6 @@
-<float name="fov" value="0.000000"/>
-<float name="nearClip" value="0.000000"/>
-<float name="farClip" value="0.000000"/>
+<float name="fov" value="40.000000"/>
+<float name="nearClip" value="0.010000"/>
+<float name="farClip" value="1500.000000"/>
 <transform name="toWorld">
-<lookat  origin=" 0.000000,-1.500000,0.450000" target="0.000000,-0.500944,0.406563" up="0.000000,0.043437,0.999056"/>
+<lookat  origin=" 0.364316,-1.029871,0.608934" target="0.060787,-0.122995,0.316620" up="-0.092778,0.277200,0.956322"/>
 </transform>

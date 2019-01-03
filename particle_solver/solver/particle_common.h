@@ -20,6 +20,7 @@ struct fluidvol {
 	cfloat3 xmax;
 	float volfrac[10];
 	int group;
+	int type;
 };
 
 struct FluidSrc {

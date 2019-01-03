@@ -126,11 +126,11 @@ void SPHSolver::SolveSPH() {
 
 	Sort();
 
-	computePressure(device_data, num_particles);
+	ComputePressure(device_data, num_particles);
 
 	computeForce(device_data, num_particles);
 
-	advect(device_data, num_particles);
+	Advect(device_data, num_particles);
 
 	CopyFromDevice();
 }
@@ -173,8 +173,9 @@ void SPHSolver::PhaseDiffusion_Host() {
 
 	DriftVelocity(device_data, num_particles);
 
+	//PhaseDiffusion(device_data, num_particles, NULL, frame_count);
 	PhaseDiffusion(device_data, num_particles);
-
+	
 	EffectiveMass(device_data, num_particles);
 
 	DFSPHFactor_Multiphase(device_data, num_particles);
@@ -182,10 +183,22 @@ void SPHSolver::PhaseDiffusion_Host() {
 }
 
 
+
+void SPHSolver::SetupMultiphaseSPH() {
+	SetupFluidScene();
+	run_mode = MSPH;
+
+	Sort();
+	EffectiveMass(device_data, num_particles);
+	DFSPHFactor_Multiphase(device_data, num_particles);
+	RigidParticleVolume(device_data, num_particles);
+	InitializeDeformable(device_data, num_particles);
+}
+
 void SPHSolver::SolveMultiphaseSPH() {
 	
 	
-	//catpaw::cTime clock; clock.tick();
+	catpaw::cTime clock; clock.tick();
 	
 	//DetectDispersedParticles(device_data, num_particles);
 	NonPressureForce_Multiphase(device_data, num_particles);
@@ -194,15 +207,17 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//compute tension in solids
 	ComputeTension(device_data, num_particles);
 
-
-	EnforceDensity_Multiphase(device_data, num_particles, 4, 1, false,  true);
-	//printf("density solve %f\n", clock.tack()*1000); clock.tick();
+	//clock.tick();
+	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, true,  true);
+	//printf("density solve %f\n", clock.tack()*1000); 
 	
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
-	//printf("sort %f\n", clock.tack()*1000); clock.tick();
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 2, 0.5, false, true);
+	//printf("sort %f\n", clock.tack()*1000); 
+	
+	//clock.tick();
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 30, 2, true, true);
 	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
 
 
@@ -213,11 +228,28 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//PlasticProjection(device_data, num_particles);
 	
 
-	//PhaseDiffusion_Host();
+	PhaseDiffusion_Host();
 
 
 	CopyFromDevice();
 }
+
+void SPHSolver::SolveMultiphaseSPHRen() {
+	
+	ComputePressure(device_data, num_particles);
+	ComputeForceMultiphase(device_data, num_particles);
+	Advect(device_data, num_particles);
+	
+	Sort();
+	
+	ComputePressure(device_data, num_particles);
+	DriftVel_Ren(device_data, num_particles);
+	PhaseDiffusion_Ren(device_data, num_particles);
+	EffectiveMass(device_data, num_particles);
+	
+	CopyFromDevice();
+}
+
 
 
 void SPHSolver::Eval(const char* expression) {
@@ -237,6 +269,8 @@ void SPHSolver::Step() {
 			SolveDFSPH(); break;
 		case MSPH:
 			SolveMultiphaseSPH(); break;
+		case MSPH_REN:
+			SolveMultiphaseSPHRen(); break;
 		}
 		
 
@@ -281,7 +315,7 @@ void SPHSolver::DumpSimulationDataText() {
 }
 
 void SPHSolver::DumpRenderData() {
-	printf("Dumping rendering data at frame %d\n", frame_count);
+	//printf("Dumping rendering data at frame %d\n", frame_count);
 	char filepath[1000];
 	sprintf(filepath, "..\\particle_data\\%03d.txt", dump_count++);
 
@@ -446,6 +480,7 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	reader.Use(boundElement);
 	hParam.bRestdensity = reader.GetFloat("RestDensity");
 	hParam.bvisc = reader.GetFloat("Viscosity");
+	hParam.boundstiff = reader.GetFloat("BoundStiff");
 }
 
 
@@ -485,25 +520,13 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
 	
 	
-	//run_mode = SPH;
-	//run_mode = DFSPH;
-	run_mode = MSPH;
+	
 	emit_particle_on = false;
 	dt = hParam.dt;
 }
 
 void SPHSolver::SetupHostBuffer() {
 	int maxNP = hParam.maxpnum;
-	/*
-	host_x.resize(maxNP);
-	host_color.resize(maxNP);
-	host_v.resize(maxNP);
-	host_type.resize(maxNP);
-	host_group.resize(maxNP);
-	host_mass.resize(maxNP);
-	host_unique_id.resize(maxNP);
-	host_id_table.resize(maxNP);
-	*/
 }
 
 //zero by default
@@ -576,60 +599,21 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 		cfloat3 xmax = fluid_volumes[i].xmax;
 		int addcount=0;
 
-		float* vf = fluid_volumes[i].volfrac;
-		int group = fluid_volumes[i].group;
-		float spacing = hParam.spacing;
-		float pden = 0;
-		for(int t=0; t<hParam.maxtypenum; t++)
-			pden += hParam.densArr[t] * vf[t];
-
-		float mp   = spacing*spacing*spacing* pden;
-		float pvisc = hParam.viscosity;
-
-		for (float x=xmin.x; x<xmax.x; x+=spacing)
-			for (float y=xmin.y; y<xmax.y; y+=spacing)
-				for (float z=xmin.z; z<xmax.z; z+=spacing) {
-					int pid = AddDefaultParticle();
-					host_x[pid] = cfloat3(x, y, z);
-					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
-					host_type[pid] = TYPE_FLUID;
-					
-					host_group[pid] = group;
-					host_mass[pid] = mp;
-					host_rest_density[pid] = pden;
-					host_localid[pid] = localid_counter[TYPE_FLUID]++;
-
-					for(int t=0;  t<hParam.maxtypenum; t++)
-						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
-
-					addcount += 1;
-				}
-
-		printf("fluid block No. %d has %d particles.\n", i, addcount);
-		hParam.num_fluid_p += addcount;
-	}
-}
-
-
-void SPHSolver::AddDeformableVolumes() {
-
-	for (int i=0; i<fluid_volumes.size(); i++) {
-		cfloat3 xmin = fluid_volumes[i].xmin;
-		cfloat3 xmax = fluid_volumes[i].xmax;
-		int addcount=0;
-
-		float yc = (xmax.y+xmin.y)*0.5;
-		float xc = (xmax.x+xmin.x)*0.5;
-		float w = 50;
-
 		float* vf    = fluid_volumes[i].volfrac;
+		int type = fluid_volumes[i].type;
+		if (!(type==TYPE_FLUID || type==TYPE_DEFORMABLE || type==TYPE_GRANULAR))
+		{
+			printf("Error: wrong volume type.\n"); 
+			continue;
+		}
+
 		int group = fluid_volumes[i].group;
 		float spacing = hParam.spacing;
-		float pden = 0;
+		float density = 0;
 		for (int t=0; t<hParam.maxtypenum; t++)
-			pden += hParam.densArr[t] * vf[t];
+			density += hParam.densArr[t] * vf[t];
 
-		float mp   = spacing*spacing*spacing* pden;
+		float mp   = spacing*spacing*spacing* density;
 		float pvisc = hParam.viscosity;
 
 		for (float x=xmin.x; x<xmax.x; x+=spacing)
@@ -638,38 +622,42 @@ void SPHSolver::AddDeformableVolumes() {
 					int pid = AddDefaultParticle();
 					host_x[pid] = cfloat3(x, y, z);
 					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
-					host_type[pid] = TYPE_DEFORMABLE;
+					host_type[pid] = type;
 					
-					float dx=x-xc;
-					float dy=y-yc;
-					host_v[pid].Set(-dy*w,dx*w,0);
-
 					host_group[pid] = group;
 					host_mass[pid] = mp;
-					host_rest_density[pid] = pden;
-					host_localid[pid] = localid_counter[TYPE_DEFORMABLE]++;
+					host_rest_density[pid] = density;
+					host_localid[pid] = localid_counter[type]++;
 					
 					for (int t=0; t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
 
 					addcount += 1;
 				}
-
-		printf("Deformable block No. %d has %d particles.\n", i, addcount);
-		hParam.num_deformable_p += addcount;
+		if (type==TYPE_FLUID) {
+			printf("Block No. %d, type: fluid, particle num: %d\n", i, addcount);
+			hParam.num_fluid_p += addcount;
+		}
+		else if(type==TYPE_DEFORMABLE){
+			printf("Block No. %d, type: deformable, particle num: %d\n", i, addcount);
+			hParam.num_deformable_p += addcount;
+		}
+		else if(type==TYPE_GRANULAR){
+			printf("Block No. %d, type: granular, particle num: %d\n", i, addcount);
+		}
 	}
 }
 
 void SPHSolver::LoadPO(ParticleObject* po) {
 	float spacing = hParam.spacing;
 	float pden = hParam.restdensity;
-	float mp   = spacing*spacing*spacing* pden*2;
+	float mp   = spacing*spacing*spacing* pden*100;
 
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
 		host_color[pid] = cfloat4(1,1,1,0.0);
-		host_type[pid] = TYPE_RIGID;
+		host_type[pid] = po->type[i];
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
 		host_group[pid] = po->id[i];
@@ -680,9 +668,7 @@ void SPHSolver::SetupFluidScene() {
 	LoadParam("config/sph_scene.xml");
 	SetupHostBuffer();
 
-	//AddMultiphaseFluidVolumes();
-
-	AddDeformableVolumes();
+	AddMultiphaseFluidVolumes();
 
 	BoundaryGenerator bg;
 	ParticleObject* boundary = bg.loadxml("script_object/big box.xml");
@@ -693,22 +679,29 @@ void SPHSolver::SetupFluidScene() {
 	Copy2Device();
 }
 
-void SPHSolver::SetupMultiphaseSPH() {
-	SetupFluidScene();
-	Sort();
 
+
+void SPHSolver::SetupMultiphaseSPHRen() {
+	SetupFluidScene();
+	run_mode = MSPH_REN;
+
+	Sort();
 	EffectiveMass(device_data, num_particles);
-	DFSPHFactor_Multiphase(device_data, num_particles);
+	//DFSPHFactor_Multiphase(device_data, num_particles);
 	RigidParticleVolume(device_data, num_particles);
-	InitializeDeformable(device_data, num_particles);
+	//InitializeDeformable(device_data, num_particles);
 }
 
 void SPHSolver::Setup() {
-	//SetupFluidScene();
+	
+	//SetupFluidScene(); run_mode = SPH;
 
-	//SetupDFSPH();
+	//SetupDFSPH(); run_mode = DFSPH;
 
-	SetupMultiphaseSPH();
+	//SetupMultiphaseSPH();
+
+	SetupMultiphaseSPHRen();
+
 }
 
 

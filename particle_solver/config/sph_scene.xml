@@ -1,11 +1,11 @@
 <Fluid>
 	<AccelLimit>	1500.0		</AccelLimit>
 	<VelLimit>		100		</VelLimit>
-	<Gravity>	0, 0, 0		</Gravity>
+	<Gravity>	0, -9.8, 0		</Gravity>
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 4 </SceneId>
+	<SceneId> 1 </SceneId>
 
 </Fluid>
 
@@ -27,21 +27,21 @@
 	
 	<Vol>
 		<VolMin>	-0.15,  0.017,  0.0	</VolMin>
-		<VolMax>	-0.05,  0.15,  0.1	</VolMax>
+		<VolMax>	-0.029,  0.35,  0.11	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
 	<Vol>
-		<VolMin>	0.05,  0.017,  0.0	</VolMin>
-		<VolMax>	0.15,  0.15,  0.1	</VolMax>
+		<VolMin>	0.03,  0.017,  0.0	</VolMin>
+		<VolMax>	0.151,  0.35,  0.11	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
 	<Vol>
-		<VolMin>	-0.05,  0.017, -0.15 </VolMin>
-		<VolMax>	0.05,  0.15,   -0.05	</VolMax>
+		<VolMin>	-0.06,  0.017, -0.15 </VolMin>
+		<VolMax>	0.061,  0.35,   -0.049	</VolMax>
 		<VolFrac>   0,  1,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
@@ -49,8 +49,8 @@
 	<SurfaceTension> 200 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> -0.001 </DriftThermalDiffusion>
-	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
+	<DriftThermalDiffusion> -0.0005 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> -0.001 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 </MultiScene>
 
@@ -68,9 +68,9 @@
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 
-	<SurfaceTension> 0.1 </SurfaceTension>
+	<SurfaceTension> 100 </SurfaceTension>
 	
-	<DensityArray> 1000,1000,1000 </DensityArray>
+	<DensityArray> 500,1000,1500 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<!--Vol>
@@ -81,15 +81,29 @@
 	</Vol-->
 
 	<Vol>
-		<VolMin>	-0.135,  0.015,  0.01	</VolMin>
-		<VolMax>	-0.05,  0.2,  0.12 </VolMax>
-		<VolFrac>   1,  0,  0 </VolFrac>
+		<VolMin>	-0.08,  0.015,  -0.08	</VolMin>
+		<VolMax>	0.081,  0.25,  0.081	</VolMax>
+		<VolFrac>   0.5,  0.5,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
 
-	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
-	<DriftTurbulentDiffusion> -0.001 </DriftTurbulentDiffusion>
+	<!--Vol>
+		<VolMin>	-0.08,  0.21,  -0.08	</VolMin>
+		<VolMax>	0.081,  0.42,  0.081	</VolMax>
+		<VolFrac>   0,  1,  0 </VolFrac>
+		<Group> 0 </Group>
+	</Vol-->
 
+	<!--Vol>
+		<VolMin>	-0.04,  0.015,  -0.041	</VolMin>
+		<VolMax>	0.041,  0.4,  0.041	</VolMax>
+		<VolFrac>   1,  0,  0 </VolFrac>
+		<Group> 0 </Group>
+	</Vol-->
+
+	<DriftDynamicDiffusion> 0.015 </DriftDynamicDiffusion>
+	<DriftThermalDiffusion> -0.000 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> -0.001 </DriftTurbulentDiffusion>
 </MultiScene>
 
 <MultiScene id="3">
@@ -174,15 +188,15 @@
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 2 </SmoothRatio>
 	
-	<Viscosity>	 0.00	</Viscosity>
+	<Viscosity>	 0.05	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
 	<DensityArray> 500,1000,1500 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.05,  0.1,  0.0	</VolMin>
-		<VolMax>	0.05,  0.2,  0.1	</VolMax>
+		<VolMin>	-0.08,  0.015,  -0.08	</VolMin>
+		<VolMax>	0.08,  0.15,  0.08	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 	</Vol>
@@ -200,10 +214,10 @@
 </MultiScene>
 
 <BoundInfo id="1">
-	<Viscosity>	 1		</Viscosity>
+	<Viscosity>	 0.5		</Viscosity>
 	<RestDensity>	1000.0		</RestDensity>
 	<Mass>		0.00010543	</Mass>
-	<BoundStiff>	5000	</BoundStiff>
+	<BoundStiff>	2	</BoundStiff>
 </BoundInfo>
 
 

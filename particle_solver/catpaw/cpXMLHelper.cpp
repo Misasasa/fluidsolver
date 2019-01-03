@@ -20,20 +20,22 @@ const char* Tinyxml_Reader::GetText(const char* name) {
 }
 
 float Tinyxml_Reader::GetFloat(const char* name) {
+	if (basenode==NULL)
+		return 0;
 	float tmp=0;
-	if (basenode!=NULL) {
-		XMLElement* attr = basenode->FirstChildElement(name);
-		if (attr)
-			attr->QueryFloatText(&tmp);
-	}
+	XMLElement* attr = basenode->FirstChildElement(name);
+	if (attr)
+		attr->QueryFloatText(&tmp);
 	return tmp;
 }
 
 int Tinyxml_Reader::GetInt(const char* name) {
+	if (basenode==NULL)
+		return 0;
 	int tmp=0;
-	if (basenode!=NULL) {
-		basenode->FirstChildElement(name)->QueryIntText(&tmp);
-	}
+	XMLElement* e = basenode->FirstChildElement(name);
+	if(e)
+		e->QueryIntText(&tmp);
 	return tmp;
 }
 
@@ -66,7 +68,13 @@ cint3 Tinyxml_Reader::GetInt3(char* name) {
 void Tinyxml_Reader::GetFloatN(float* buffer, int size, const char* name) {
 	if (basenode==NULL)
 		return;
-	const char* str = basenode->FirstChildElement(name)->GetText();
+	XMLElement* e = basenode->FirstChildElement(name);
+	if (!e) {
+		printf("Error: accessing invalid float n.\n");
+		return;
+	}
+		
+	const char* str = e->GetText();
 	std::string fmstr = "";
 	for (int i=0; i<size-1; i++)
 		fmstr = fmstr+"%f,";

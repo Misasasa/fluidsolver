@@ -223,7 +223,7 @@ void resize(int width, int height)
 
 void SolverGUI::ReSize(int width, int height) {
 
-	camera.SetProjParam(40, (float)width/height, 0.01f, 10.0f);
+	camera.SetProjParam(40, (float)width/height, 0.01f, 1500.0f);
 	camera.ProjectionMat();
 }
 
@@ -293,7 +293,11 @@ void SolverGUI::PrintCameraParam() {
 	fprintf(foutput,"<float name=\"fov\" value=\"%f\"/>\n",camera.fovy);
 	fprintf(foutput, "<float name=\"nearClip\" value=\"%f\"/>\n", camera.nearclip);
 	fprintf(foutput, "<float name=\"farClip\" value=\"%f\"/>\n", camera.farclip);
-	
+
+	/*cfloat3 dir = target-origin;
+	origin *= 200;
+	target = origin + dir;*/
+
 	fprintf(foutput,"<transform name=\"toWorld\">\n");
 	fprintf(foutput,"<lookat ");
 	fprintf(foutput," origin=\" %f,%f,%f\" ",origin.x,origin.y,origin.z);
@@ -729,11 +733,14 @@ void SolverGUI::render() {
 
 		float interval = 1.0/120.0;
 		frametimer += solver->dt;
+
 		if (frametimer > interval) {
 			if(bTakeSnapshot) takeSnapshot();
 			if(dump_renderdata) solver->Eval("DumpRenderData");
 			frametimer = 0;
 		}
+
+		
 
 		frameNo++;
 	}

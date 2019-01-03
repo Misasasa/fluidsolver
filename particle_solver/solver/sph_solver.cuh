@@ -173,9 +173,9 @@ void reorderDataAndFindCellStart(
 
 
 //Standard SPH
-void computePressure(SimData_SPH data, int numP);
+void ComputePressure(SimData_SPH data, int numP);
 void computeForce(SimData_SPH data, int numP);
-void advect(SimData_SPH data, int numP);
+void Advect(SimData_SPH data, int numP);
 
 
 
@@ -234,11 +234,23 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data,
 void EffectiveMass(SimData_SPH data, int num_particles);
 void DriftVelocity(SimData_SPH data, int num_particles);
 void PhaseDiffusion(SimData_SPH data, int num_particles);
+void PhaseDiffusion(SimData_SPH data, int num_particles, float* dbg, int frameNo);
+
 void RigidParticleVolume(SimData_SPH data, int num_particles);
 void InitializeDeformable(SimData_SPH data, int num_particles);
 
 void MoveConstraintBoxAway(SimData_SPH data, int num_particles);
 void DetectDispersedParticles(SimData_SPH data, int num_particles);
+
+
+/*
+Compare with Ren's method.
+*/
+
+void ComputeForceMultiphase(SimData_SPH data, int num_p);
+void DriftVel_Ren(SimData_SPH data, int num_p);
+void PhaseDiffusion_Ren(SimData_SPH data, int num_p);
+
 
 
 /**********      Solid       ***********/

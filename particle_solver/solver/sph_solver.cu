@@ -78,11 +78,11 @@ void reorderDataAndFindCellStart(
 }
 
 
-void computePressure(SimData_SPH data, int num_particles) {
+void ComputePressure(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 	
-	computeP <<< num_blocks, num_threads>>>(data, num_particles);
+	ComputePressureKernel <<< num_blocks, num_threads>>>(data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: compute pressure");
 
@@ -98,11 +98,11 @@ void computeForce(SimData_SPH data, int num_particles) {
 
 }
 
-void advect(SimData_SPH data, int num_particles) {
+void Advect(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	advectAndCollision <<< num_blocks, num_threads>>> (data, num_particles);
+	AdvectKernel <<< num_blocks, num_threads>>> (data, num_particles);
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: advection");
 
@@ -335,7 +335,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 		getLastCudaError("Kernel execution failed: solve density stiff warm start");
 	}
 
-	cudaMemset(data.div_stiff, 0, sizeof(float)*num_particles);
+	cudaMemset(data.rho_stiff, 0, sizeof(float)*num_particles);
 
 
 	float err_avg=0;
@@ -401,7 +401,7 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 		getLastCudaError("Kernel execution failed: solve density stiff warm start");
 	}
 
-	cudaMemset(data.rho_stiff, 0, sizeof(float)*num_particles);
+	cudaMemset(data.div_stiff, 0, sizeof(float)*num_particles);
 
 
 
@@ -471,6 +471,38 @@ void PhaseDiffusion(SimData_SPH data, int num_particles) {
 	printf("total volume fraction phase 0: %f\n", verify);
 	delete dbg_pt;*/
 	
+}
+
+void PhaseDiffusion(SimData_SPH data, int num_particles, float* dbg, int frameNo) {
+
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	PredictPhaseDiffusionKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: predict phase diffusion.");
+
+	PhaseDiffusionKernel<<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: phase diffusion.");
+
+	UpdateVolumeFraction<<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: update volume fraction.");
+
+
+	if (frameNo%10==0) {
+		float* dbg_pt = new float[num_particles*hParam.maxtypenum];
+		cudaMemcpy(dbg_pt, data.vFrac, num_particles*hParam.maxtypenum*sizeof(float),
+			cudaMemcpyDeviceToHost);
+		float verify[10]; for (int k=0; k<10; k++) verify[k]=0;
+		for (int i=0; i<num_particles; i++) {
+			for (int k=0; k<hParam.maxtypenum; k++)
+				verify[k] += dbg_pt[i*hParam.maxtypenum+k];
+		}
+		printf("%d %f %f %f\n", frameNo, verify[0], verify[1], verify[2]);
+		delete dbg_pt;
+	}
 }
 
 
@@ -547,6 +579,56 @@ void InitializeDeformable(SimData_SPH data, int num_particles) {
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel failed: initialize deformables");
 }
+
+
+/*
+Compare with Ren's method.
+*/
+
+void ComputeForceMultiphase(SimData_SPH data, int num_p)
+{
+	uint num_threads, num_blocks;
+	computeGridSize(num_p, 256, num_blocks, num_threads);
+
+	ComputeForceMultiphase_Kernel <<<num_blocks, num_threads>>>(data, num_p);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: compute force multiphase");
+}
+
+void DriftVel_Ren(SimData_SPH data, int num_p)
+{
+	uint num_threads, num_blocks;
+	computeGridSize(num_p, 256, num_blocks, num_threads);
+
+	DriftVelRenKernel <<<num_blocks, num_threads>>>(data, num_p);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: drift vel Ren");
+}
+void PhaseDiffusion_Ren(SimData_SPH data, int num_p)
+{
+	uint num_threads, num_blocks;
+	computeGridSize(num_p, 256, num_blocks, num_threads);
+
+	PhaseDiffusionRenKernel <<<num_blocks, num_threads>>>(data, num_p);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: phase diffusion Ren");
+
+	UpdateVolumeFraction <<<num_blocks, num_threads>>>(data, num_p);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: update volume fraction");
+
+
+	float* dbg_pt = new float[num_p*hParam.maxtypenum];
+	cudaMemcpy(dbg_pt, data.vFrac, num_p*hParam.maxtypenum*sizeof(float),
+	cudaMemcpyDeviceToHost);
+	float verify=0;
+	for(int i=0; i<num_p; i++)
+	verify += dbg_pt[i*hParam.maxtypenum];
+	printf("total volume fraction phase 0: %f\n", verify);
+	delete dbg_pt;
+}
+
+
 
 
 

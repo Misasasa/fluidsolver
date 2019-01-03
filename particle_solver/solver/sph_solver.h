@@ -13,7 +13,7 @@ namespace sph{
 #define SPH 0
 #define DFSPH 1
 #define MSPH 2
-
+#define MSPH_REN 3
 
 class SPHSolver : public Solver {
 
@@ -81,6 +81,7 @@ public:
 	void SolveSPH();
 	void SolveDFSPH();
 	void SolveMultiphaseSPH(); //with DFSPH
+	void SolveMultiphaseSPHRen(); //with Ren et al. 13
 
 	void PhaseDiffusion_Host();
 
@@ -95,9 +96,11 @@ public:
 	// Multiphase Fluid
 	void SetupMultiphaseSPH();
 	void AddMultiphaseFluidVolumes();
-	void AddDeformableVolumes();
+	void SetupMultiphaseSPHRen();
 
+	/* Rigid bodies, deformables. */
 	void LoadPO(ParticleObject* po);
+	
 
 	//Setup Scenes
 	void ParseParam(char* xmlpath);
