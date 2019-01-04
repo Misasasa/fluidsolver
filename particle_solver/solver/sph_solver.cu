@@ -315,7 +315,8 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles) {
 
 void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 	int maxiter, 
-	float ethres, 
+	float ethres_avg,
+	float ethres_max,
 	bool bDebug,
 	bool warm_start)
 {
@@ -339,6 +340,7 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 
 
 	float err_avg=0;
+	int num_p = hParam.num_deformable_p + hParam.num_fluid_p;
 	while (true && iter<maxiter) 
 	{
 		DensityStiff_Multiphase <<< num_blocks, num_threads>>> (data, num_particles);
@@ -357,12 +359,12 @@ void EnforceDensity_Multiphase(SimData_SPH data, int num_particles,
 			err_max = debug[i]>err_max ? debug[i] : err_max;
 			err_avg += debug[i];
 		}
-		err_avg /= hParam.num_fluid_p;
+		err_avg /= num_p;
 		
 		
-		if (err_avg < ethres) break;
+		if (err_avg < ethres_avg && err_max < ethres_max) break;
 
-		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
+		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>> ( data, num_particles, data.rho_stiff );
 
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply density stiff");
@@ -417,7 +419,7 @@ void EnforceDivergenceFree_Multiphase(SimData_SPH data, int num_particles,
 			err_max = debug[i]>err_max ? debug[i] : err_max;
 		if (err_max<ethres) break;
 
-		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>(data, num_particles);
+		ApplyPressureKernel_Multiphase <<<num_blocks, num_threads>>>( data, num_particles, data.div_stiff );
 		cudaThreadSynchronize();
 		getLastCudaError("Kernel execution failed: apply divergence stiff");
 

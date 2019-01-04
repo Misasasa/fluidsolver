@@ -208,7 +208,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 	ComputeTension(device_data, num_particles);
 
 	//clock.tick();
-	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, true,  true);
+	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, 2, false,  true);
 	//printf("density solve %f\n", clock.tack()*1000); 
 	
 	Sort();
@@ -217,7 +217,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//printf("sort %f\n", clock.tack()*1000); 
 	
 	//clock.tick();
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 30, 2, true, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 2, 0.5, false, true);
 	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
 
 
@@ -228,7 +228,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//PlasticProjection(device_data, num_particles);
 	
 
-	PhaseDiffusion_Host();
+	//PhaseDiffusion_Host();
 
 
 	CopyFromDevice();
@@ -464,12 +464,20 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.surface_tension = reader.GetFloat("SurfaceTension");
 	hParam.acceleration_limit = reader.GetFloat("AccelerationLimit");
 
+	/* Solid parameters. 
+	E: Young's modulus
+	v: Poisson's ratio
+	G: shear modulus
+	K: bulk modulus
+	*/
+
 	float E = reader.GetFloat("YoungsModulus");
 	float v = reader.GetFloat("PoissonsRatio");
 	hParam.Yield = reader.GetFloat("Yield");
 	hParam.solidG = E/2/(1+v);
 	hParam.solidK = E/3/(1-2*v);
-	printf("G,K: %f %f\n", hParam.solidG, hParam.solidK);
+	hParam.solid_visc = reader.GetFloat("SolidViscosity");
+	printf("G,K,solidvisc: %f %f %f\n", hParam.solidG, hParam.solidK, hParam.solid_visc);
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -651,13 +659,13 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 void SPHSolver::LoadPO(ParticleObject* po) {
 	float spacing = hParam.spacing;
 	float pden = hParam.restdensity;
-	float mp   = spacing*spacing*spacing* pden*100;
+	float mp   = spacing*spacing*spacing* pden*2;
 
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
 		host_color[pid] = cfloat4(1,1,1,0.0);
-		host_type[pid] = po->type[i];
+		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
 		host_group[pid] = po->id[i];
@@ -698,9 +706,9 @@ void SPHSolver::Setup() {
 
 	//SetupDFSPH(); run_mode = DFSPH;
 
-	//SetupMultiphaseSPH();
+	SetupMultiphaseSPH();
 
-	SetupMultiphaseSPHRen();
+	//SetupMultiphaseSPHRen();
 
 }
 

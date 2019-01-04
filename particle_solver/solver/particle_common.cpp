@@ -19,6 +19,8 @@ void loadFluidVolume(XMLElement* sceneEle, int typenum, vector<fluidvol>& fvs) {
 		fv.xmax = reader.GetFloat3("VolMax");
 		fv.group = reader.GetInt("Group");
 		tmp = reader.GetText("Type");
+		
+		//printf("%s %d\n", tmp, strcmp(tmp,"deformable"));
 
 		if(!tmp)
 			fv.type = TYPE_FLUID;

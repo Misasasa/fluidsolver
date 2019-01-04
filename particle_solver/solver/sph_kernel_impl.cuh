@@ -1215,8 +1215,9 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 
 		if (data.type[i]==TYPE_DEFORMABLE && data.type[j]==TYPE_DEFORMABLE) {
 			
-			force += vij * dParam.viscosity * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt;
-		
+			force += vij * dParam.solid_visc * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt;
+			/*if(data.uniqueId[i]==0)
+				printf("%f %f %f %f\n", dParam.viscosity, force.x, force.y, force.z);*/
 		}
 
 		if (data.type[j]==TYPE_RIGID) {
@@ -1235,7 +1236,7 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 				cfloat3 ft = f - fn;
 				force += fn;*/
 				//force += ft;
-				force += f;
+				//force += f;
 			}
 		}
 	}
@@ -1363,7 +1364,7 @@ __global__ void DensityStiff_Multiphase(
 		/dParam.dt/dParam.dt;
 	data.error[index] = densityAdv - data.restDensity[index];
 	
-	data.rho_stiff[index] += data.pstiff[index];
+	
 }
 
 
@@ -1442,8 +1443,6 @@ __global__ void DivergenceFreeStiff_Multiphase(
 	data.error[index] = densChange / data.restDensity[index];
 	data.pstiff[index] = densChange/ dParam.dt * data.DF_factor[index];
 
-	data.div_stiff[index] += data.pstiff[index];
-
 }
 
 
@@ -1501,7 +1500,9 @@ __device__ void ApplyPressureCell_Multiphase(
 
 __global__ void ApplyPressureKernel_Multiphase(
 	SimData_SPH data, 
-	int num_particles) {
+	int num_particles,
+	float* stiffbuf
+) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	if (data.type[index]==TYPE_RIGID) return;
@@ -1523,6 +1524,7 @@ __global__ void ApplyPressureKernel_Multiphase(
 					force);
 			}
 	data.v_star[index] += force * dParam.dt *(-1) / data.effective_mass[index];
+	stiffbuf[index] += data.pstiff[index];
 }
 
 

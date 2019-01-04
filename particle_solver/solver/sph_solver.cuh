@@ -53,6 +53,7 @@ struct SimParam_SPH {
 	float solidK;
 	float solidG;
 	float Yield;
+	float solid_visc;
 
 	//boundary
 	cfloat3 softminx;
@@ -220,7 +221,8 @@ void NonPressureForce_Multiphase(SimData_SPH data, int num_particles);
 void EnforceDensity_Multiphase(SimData_SPH data,
 	int num_particles,
 	int maxiter,
-	float ethres,
+	float ethres_avg,
+	float ethres_max,
 	bool bDebug,
 	bool warm_start
 );
