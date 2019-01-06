@@ -45,7 +45,8 @@ __inline__ __device__ cfloat3 KernelGradient_Cubic(float h,
 	cfloat3 xij) {
 	float r = xij.Norm();
 	float q = r/h;
-	if(q>=2 || q<EPSILON) return cfloat3(0,0,0);
+	if(!(q<2 && q>EPSILON))
+		return cfloat3(0,0,0);
 	float df;
 	if(q>=1)
 		df = 0.5*(2-q)*(2-q)*(-1);
@@ -335,7 +336,7 @@ __device__ void ForceCell(cint3 gridPos, int index, cfloat3 pos, cfloat3& force,
 				if (xv < 0) {
 					float c = sr - d;
 					float nablaw = dParam.kspikydiff * c * c / d;
-					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float visc = 2*dParam.boundary_visc*dParam.smoothradius * 88.5 /2000;
 					float pi = -visc * xv /(d2 + 0.01*sr2);
 					force += xij * pi * nablaw * data.mass[j] * (-1);
 				}
@@ -525,7 +526,7 @@ __device__ void ComputeForceMultiphaseCell(
 			float xv = dot(vij, xn);
 
 			if (xv < 0) {
-				float visc = dParam.bvisc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
+				float visc = dParam.boundary_visc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
 				float pi = visc * xv /(d*d + 0.01*h2);
 				cfloat3 f = nablawij * pi * data.restDensity[i]*data.restDensity[j];
 				force += f;
@@ -717,7 +718,7 @@ __device__ void computeNPFCell(cint3 gridPos,
 				if (xv < 0) {
 					float c = sr - d;
 					float nablaw = dParam.kspikydiff * c * c / d;
-					float visc = 2*dParam.bvisc*dParam.smoothradius * 88.5 /2000;
+					float visc = 2*dParam.boundary_visc*dParam.smoothradius * 88.5 /2000;
 					float pi = -visc * xv /(d2 + 0.01*sr2);
 					force += xij * pi * nablaw * data.mass[j] * (-1);
 				}
@@ -1220,23 +1221,25 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 				printf("%f %f %f %f\n", dParam.viscosity, force.x, force.y, force.z);*/
 		}
 
-		if (data.type[j]==TYPE_RIGID) {
+		if (data.type[j]==TYPE_RIGID && data.group[j]==0) {
 
 			//artificial viscosity
-			//float xv = dot(vij, xij);
-			cfloat3 xn = data.normal[j] * d;
-			float xv = dot(vij, xn);
+			float xv = dot(vij, xij);
+			cfloat3& n = data.normal[j];
+			cfloat3 xn = n * d;
+			cfloat3 vn = n * dot(n, vij);
+			cfloat3 vt = vij - vn;
+			//float xv = dot(vij, xn);
 
 			if (xv < 0) {
-				float visc = dParam.bvisc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
+				float visc = dParam.boundary_visc*dParam.smoothradius * 88.5 / data.density[i] * 0.25;
 				float pi = visc * xv /(d2 + 0.01*h2);
 				cfloat3 f = nablaw * pi * data.restDensity[i]*data.restDensity[j];
-				/*cfloat3 n = data.normal[j];
-				cfloat3 fn = n *  dot(fn,n);
-				cfloat3 ft = f - fn;
-				force += fn;*/
-				//force += ft;
-				//force += f;
+				
+				cfloat3 fn = data.normal[j] *  dot(f,data.normal[j]);
+				cfloat3 ft = vt * (fn.Norm() * (-1) * dParam.boundary_friction);
+				force += fn;
+				force += ft;
 			}
 		}
 	}
@@ -2479,78 +2482,6 @@ __global__ void ComputeTensionCauchyStress_Kernel(SimData_SPH data, int num_part
 
 
 
-/*
-Compute tension with first Piola-Kirchhoff stress tensor P.
-*/
-
-
-__device__ void ComputeTensionWithP_Cell(
-	int i,
-	cfloat3 xi,
-	SimData_SPH& data,
-	cfloat3& tension
-) {
-	
-	float h = dParam.smoothradius*0.5;
-	
-	
-	cfloat3 nablawij;
-	cfloat3 nablawi, nablawj;
-	cfloat3 fi, fj;
-	cmat3& P_i = data.cauchy_stress[i];
-	int localid_i = data.local_id[i];
-	cfloat3 x0i = data.x0[localid_i];
-	cmat3 RL_i, RL_j;
-	mat3prod(data.rotation[localid_i], data.correct_kernel[localid_i], RL_i);
-	
-	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
-	int num_neighbor = neighborlist[0];
-
-	for (uint niter = 1; niter <= num_neighbor; niter++)
-	{
-
-		/* Neighborlist stores the unique id of neighboring particles.
-		We look up the index table to get the current index.
-		*/
-
-		int j = data.indexTable[neighborlist[niter]];
-		int localid_j = data.local_id[j];
-
-		cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
-		cmat3& sigma_j = data.cauchy_stress[j];
-		nablawij = KernelGradient_Cubic(h, x0ij);
-		mvprod(RL_i, nablawij, nablawi);
-		mat3prod(data.rotation[localid_j], data.correct_kernel[localid_j], RL_j);
-		mvprod(RL_j, nablawij, nablawj);
-		
-		mvprod(data.cauchy_stress[i], nablawi, fi);
-		mvprod(data.cauchy_stress[j], nablawj, fj);
-		tension += fi + fj;
-	}
-}
-
-__global__ void ComputeTensionWithP_Kernel(SimData_SPH data, int num_particles)
-{
-	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= num_particles)
-		return;
-	if (data.type[index]!=TYPE_DEFORMABLE)
-		return;
-
-	cfloat3 xi = data.pos[index];
-	
-	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
-	cfloat3  tension(0, 0, 0);
-	ComputeTensionWithP_Cell(
-		index,
-		xi,
-		data,
-		tension);	
-
-	tension *= vol*vol / data.mass[index];
-	data.v_star[index] += tension * dParam.dt; 
-}
-
 
 __device__ void VelocityGradient_Cell(
 	cint3 cell_index,
@@ -2676,6 +2607,145 @@ the first Piola-Kirchhoff stress P accordingly.
 
 
 
+/*
+Compute tension with first Piola-Kirchhoff stress tensor P.
+*/
+
+
+__device__ void ComputeTensionWithP_Cell(
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cfloat3& tension
+) {
+
+	float h = dParam.smoothradius*0.5;
+
+
+	cfloat3 nablawij;
+	cfloat3 nablawi, nablawj;
+	cfloat3 fi, fj;
+	cmat3& P_i = data.cauchy_stress[i];
+	int localid_i = data.local_id[i];
+	cfloat3 x0i = data.x0[localid_i];
+	cmat3 RL_i, RL_j;
+	mat3prod(data.rotation[localid_i], data.correct_kernel[localid_i], RL_i);
+
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	cfloat3* neighbordx = &data.neighbordx[localid_i*NUM_NEIGHBOR];
+	int num_neighbor = neighborlist[0];
+
+	for (uint niter = 1; niter <= num_neighbor; niter++)
+	{
+
+		/* Neighborlist stores the unique id of neighboring particles.
+		We look up the index table to get the current index.
+		*/
+
+		int j = data.indexTable[neighborlist[niter]];
+		int localid_j = data.local_id[j];
+
+		cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
+		cmat3& sigma_j = data.cauchy_stress[j];
+		nablawij = KernelGradient_Cubic(h, x0ij);
+		mvprod(RL_i, nablawij, nablawi);
+		mat3prod(data.rotation[localid_j], data.correct_kernel[localid_j], RL_j);
+		mvprod(RL_j, nablawij, nablawj);
+
+		mvprod(data.cauchy_stress[i], nablawi, fi);
+		mvprod(data.cauchy_stress[j], nablawj, fj);
+		tension += fi + fj;
+	}
+}
+
+__device__ void ComputeTensionWithP_Cell_Plastic(
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cfloat3& tension
+) {
+
+	float h = dParam.smoothradius*0.5;
+
+
+	cfloat3 nablawij;
+	cfloat3 nablawi, nablawj;
+	cfloat3 fi, fj;
+	cmat3& P_i = data.cauchy_stress[i];
+	int localid_i = data.local_id[i];
+	cfloat3 x0i = data.x0[localid_i];
+	cmat3 RL_i, RL_j;
+	mat3prod(data.rotation[localid_i], data.correct_kernel[localid_i], RL_i);
+
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	cfloat3* neighbordx = &data.neighbordx[localid_i*NUM_NEIGHBOR];
+	int num_neighbor = neighborlist[0];
+
+	for (uint niter = 1; niter <= num_neighbor; niter++)
+	{
+
+		/* Neighborlist stores the unique id of neighboring particles.
+		We look up the index table to get the current index.
+		*/
+
+		int j = data.indexTable[neighborlist[niter]];
+
+		//cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
+		cmat3& sigma_j = data.cauchy_stress[j];
+
+		// x0ij from particle i
+		cfloat3 x0ij = neighbordx[niter];
+		if (! (x0ij.Norm()<dParam.smoothradius))
+			continue;
+		nablawij = KernelGradient_Cubic(h, x0ij);
+		mvprod(RL_i, nablawij, nablawi);
+
+		// x0ij from particle j
+		int localid_j = data.local_id[j];
+		int* neighborlist_j = &data.neighborlist[localid_j*NUM_NEIGHBOR];
+		cfloat3* neighbordx_j = &data.neighbordx[localid_j*NUM_NEIGHBOR];
+		for (int k=1; k<=neighborlist_j[0]; k++) {
+			if (neighborlist_j[k]==data.uniqueId[i])
+				x0ij = neighbordx_j[k];
+		}
+		if (! (x0ij.Norm()<dParam.smoothradius))
+			continue;
+		x0ij *= (-1);
+		nablawij = KernelGradient_Cubic(h, x0ij);
+		mat3prod(data.rotation[localid_j], data.correct_kernel[localid_j], RL_j);
+		mvprod(RL_j, nablawij, nablawj);
+
+		mvprod(data.cauchy_stress[i], nablawi, fi);
+		mvprod(data.cauchy_stress[j], nablawj, fj);
+		tension += fi + fj;
+	}
+}
+
+__global__ void ComputeTensionWithP_Kernel(SimData_SPH data, int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+
+	cfloat3 xi = data.pos[index];
+
+	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
+	cfloat3  tension(0, 0, 0);
+	ComputeTensionWithP_Cell_Plastic(
+		index,
+		xi,
+		data,
+		tension);
+
+	//if(!(tension.Norm()<1e10))
+	//	tension.Set(0,0,0);
+
+	tension *= vol*vol / data.mass[index];
+	data.v_star[index] += tension * dParam.dt;
+}
+
 
 
 __device__ void DeformationGradient_Cell(
@@ -2705,7 +2775,8 @@ __device__ void DeformationGradient_Cell(
 		cfloat3 xji = data.pos[j] - xi;
 		xji *= vol;
 
-		cfloat3 x0ij = x0i - data.x0[ data.local_id[j]];
+		//cfloat3 x0ij = x0i - data.x0[ data.local_id[j]];
+		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR+niter];
 		cfloat3 nablaw = KernelGradient_Cubic(h, x0ij);
 		mvprod(L, nablaw, nablaw);
 		
@@ -2739,6 +2810,7 @@ __device__ void RotatedDeformationGradient_Cell(
 	int i,
 	cfloat3 xi,
 	SimData_SPH& data,
+	cmat3& R,
 	cmat3& rotated_F
 ) {
 
@@ -2747,7 +2819,6 @@ __device__ void RotatedDeformationGradient_Cell(
 	int localid_i = data.local_id[i];
 	cfloat3 x0i = data.x0[localid_i];
 	cmat3& L = data.correct_kernel[localid_i];
-	cmat3& R = data.rotation[localid_i];
 	cmat3 RL;
 	mat3prod(R,L,RL);
 
@@ -2763,9 +2834,15 @@ __device__ void RotatedDeformationGradient_Cell(
 		int j = data.indexTable[neighborlist[niter]];
 
 		cfloat3 xji = data.pos[j] - xi;
+		
+
+		//cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
+		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR+niter];
+		cfloat3 Rx0ji = x0ij*(-1);
+		mvprod(R, Rx0ji, Rx0ji);
+		xji = xji - Rx0ji;
 		xji *= vol;
 
-		cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
 		cfloat3 nablaw = KernelGradient_Cubic(h, x0ij);
 		mvprod(RL, nablaw, nablaw);
 		
@@ -2775,7 +2852,115 @@ __device__ void RotatedDeformationGradient_Cell(
 
 
 
-__global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
+#include "catpaw/svd3_cuda.h"
+
+__host__ __device__ __forceinline__
+void svd(cmat3& A, cmat3& U, cmat3& S, cmat3& V) {
+	svd(A[0][0], A[0][1], A[0][2],
+		A[1][0], A[1][1], A[1][2],
+		A[2][0], A[2][1], A[2][2],
+		U[0][0], U[0][1], U[0][2],
+		U[1][0], U[1][1], U[1][2],
+		U[2][0], U[2][1], U[2][2],
+		S[0][0], S[0][1], S[0][2],
+		S[1][0], S[1][1], S[1][2],
+		S[2][0], S[2][1], S[2][2],
+		V[0][0], V[0][1], V[0][2],
+		V[1][0], V[1][1], V[1][2],
+		V[2][0], V[2][1], V[2][2]
+		);
+}
+
+__device__ void PlasticityVonMises(
+	SimData_SPH& data,
+	int i,
+	float pn,
+	cmat3& F,
+	cmat3& Fp
+)
+{
+
+	cmat3 U,S,V;
+	svd(F, U,S,V);
+	float flow = dParam.plastic_flow;
+
+	float gamma = flow * (pn - dParam.Yield) / pn;
+	if(gamma > 1)
+		gamma = 1;
+
+	cmat3 Fp_diag; //initialized as full-zero
+	Fp_diag[0][0] = pow( S[0][0], gamma );
+	Fp_diag[1][1] = pow( S[1][1], gamma );
+	Fp_diag[2][2] = pow( S[2][2], gamma );
+	
+	/*Only need to get Fp, and update the reference shape
+	with Fp.
+	Fp = V Fp_diag VT
+	Fe = U Fe_diag VT
+	F = FeFp = U Fe_diag Fp_diag VT = USV
+	*/
+	
+
+	cmat3 VT, tmp;
+	mat3transpose(V,VT);
+	mat3prod(V, Fp_diag, tmp);
+	mat3prod(tmp, VT, Fp);
+}
+
+__device__ void UpdateX0_Elastoplastic(
+	SimData_SPH& data,
+	int i,
+	cmat3& Fp
+)
+{
+	//update x0_ij
+	int localid_i = data.local_id[i];
+	cfloat3* neighbordx = &data.neighbordx[localid_i*NUM_NEIGHBOR];
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	int& num_neighbor = neighborlist[0];
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	float volj = dParam.spacing*dParam.spacing*dParam.spacing;
+
+	
+	
+	for (int iter=1; iter<=num_neighbor; iter++)
+	{
+		cfloat3& x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR+iter];
+		mvprod(Fp, x0ij, x0ij);
+
+		/*cfloat3 xij = data.pos[i] - data.pos[data.indexTable[
+		neighborlist[iter]]];*/
+	}
+
+	//update kernel correction matrix
+	/*cmat3 kernel_tmp;
+	for (int iter=1; iter<=num_neighbor; iter++)
+	{
+		cfloat3 xij = neighbordx[iter];
+		cfloat3 nablaw = KernelGradient_Cubic(sr*0.5, xij);
+		xij *= (-1) * volj;
+		kernel_tmp.Add(TensorProduct(nablaw, xij));
+	}
+	cmat3 kernel_corr = kernel_tmp.Inv();*/
+	//cmat3 kernel_corr;
+	//if (kernel_corr.Norm()<1e-10) {
+	//	//printf("Degenerate correction matrix. Using Identity.\n");
+	//	kernel_corr[0][0] = 1;
+	//	kernel_corr[1][1] = 1;
+	//	kernel_corr[2][2] = 1;
+	//}
+	//	
+	//data.correct_kernel[localid_i] = kernel_corr;
+}
+
+
+__global__ void UpdateSolidStateF_Kernel(
+	SimData_SPH data, 
+	int num_particles,
+	int projection_type
+)
 {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles)
@@ -2790,14 +2975,26 @@ __global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
 
 	DeformationGradient_Cell(index, xi, data, F);
 	
-	//Extract rotation R from F.
+	if (!(F.Norm()>1e-10)) {
+		int nn = data.neighborlist[ data.local_id[index]*NUM_NEIGHBOR ];
+		printf("oops %d\n", nn);
+		data.color[index].Set(0,1,0,1);
+	}
+	if (!(F.Det()>1e-10)) {
+		F.Set(0.0);
+		F[0][0]=1;
+		F[1][1]=1;
+		F[2][2]=1;
+	}
+
 	ExtractRotation(F, R, 10);
 
 	F.Set(0.0);
-	//Rotated Deformation Gradient F_rotated.
-	//Stored in F.
-	RotatedDeformationGradient_Cell(index, xi, data, F);
-
+	RotatedDeformationGradient_Cell(index, xi, data, R, F);
+	F[0][0]+=1;
+	F[1][1]+=1;
+	F[2][2]+=1;
+	
 	//Compute strain epsilon.
 	cmat3 F_T;
 	mat3transpose(F, F_T);
@@ -2807,14 +3004,8 @@ __global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
 	epsilon[1][1] -= 1;
 	epsilon[2][2] -= 1;
 
-	/*if(data.local_id[index]%100==0)
-	printf("%f %f %f\n%f %f %f\n%f %f %f\n", 
-		epsilon.data[0],epsilon.data[1], epsilon.data[2], 
-		epsilon.data[3],epsilon.data[4],epsilon.data[5],
-		epsilon.data[6],epsilon.data[7], epsilon.data[8]);*/
-    
-
-	//First Piola-Kirchhoff Stress.
+	
+	//First Piola-Kirchhoff Stress
 	cmat3 P;
 	float mu = dParam.solidG;
 	float lambda = dParam.solidK - mu*2.0/3.0; //Lame parameters.
@@ -2825,16 +3016,41 @@ __global__ void UpdateSolidStateF_Kernel(SimData_SPH data, int num_particles)
 	P[2][2] += lambda * trace;
 
 	data.cauchy_stress[index] = P;
+	if (! (P.Norm()<1e10))
+	{
+		P.Set(0.0);
+	}
+	/*
+	Do the plastic projection after computing stress P.
+	P remains unchanged. And the reference shape should be updated.
+	*/
+	
+	cmat3 Fp;
+	switch(projection_type){
+	case VON_MISES:
+		//yield condition violated
+		float pn = P.Norm();
+		
+		if (pn>dParam.Yield) 
+		{ 
+			PlasticityVonMises(data, index, pn, F, Fp);
+			UpdateX0_Elastoplastic(data, index, Fp);
+		}
 
-	/*if(data.local_id[index]==0)
-	printf("%f %f %f\n%f %f %f\n%f %f %f\n", P.data[0],P.data[1],
-		P.data[2], P.data[3], P.data[4], P.data[5],
-		P.data[6], P.data[7], P.data[8]);*/
+		break;
+
+	case DRUCKER_PRAGER:
+		break;
+	}
+	
 }
 
 
 
-__global__ void PlasticProjection_Kernel(SimData_SPH data, int num_particles)
+__global__ void Trim0(
+	SimData_SPH data,
+	int num_particles
+)
 {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles)
@@ -2842,15 +3058,99 @@ __global__ void PlasticProjection_Kernel(SimData_SPH data, int num_particles)
 	if (data.type[index]!=TYPE_DEFORMABLE)
 		return;
 
-	cmat3& stress = data.cauchy_stress[index];
-	float mod = 0;
-	for(int k=0;k<9;k++) mod += stress.data[k]*stress.data[k];
-	if (mod > dParam.Yield)
+	int localid_i = data.local_id[index];
+	cfloat3 x0i = data.x0[localid_i];
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	cfloat3* neighbordx = &data.neighbordx[localid_i*NUM_NEIGHBOR];
+	float* len0_i = &data.length0[localid_i*NUM_NEIGHBOR];
+
+	int* trim_tag = &data.trim_tag[localid_i*NUM_NEIGHBOR];
+	int num_neighbor = neighborlist[0];
+
+	for (uint niter = 1; niter <= num_neighbor; niter++)
 	{
-		float fac = sqrt(dParam.Yield/mod);
-		for(int k=0;k<9;k++)
-			stress.data[k] *= fac;
+
+		int j = data.indexTable[neighborlist[niter]];
+		int localid_j = data.local_id[j];
+		int* neighborlist_j = &data.neighborlist[localid_j*NUM_NEIGHBOR];
+		cfloat3* neighbordx_j = &data.neighbordx[localid_j*NUM_NEIGHBOR];
+		float* len0_j = &data.length0[localid_j*NUM_NEIGHBOR];
+		bool found = false;
+		
+		cfloat3 x0ji;
+		float x0ji_len0;
+		
+		for (int k=1; k<=neighborlist_j[0]; k++) {
+			if (neighborlist_j[k]==data.uniqueId[index]){
+				x0ji = neighbordx_j[k];
+				x0ji_len0 = len0_j[k];
+				found = true;
+			}
+		}
+		
+		cfloat3 x0ij = neighbordx[niter];
+		float x0ij_len0 = len0_i[niter];
+		
+		/*if ( x0ij.Norm()>dParam.smoothradius || !(found) ||
+			 x0ji.Norm()>dParam.smoothradius)
+		{
+			trim_tag[niter] = 1;
+		}*/
+
+		if ( x0ij.Norm()/x0ij_len0 > 1.5 || 
+			!(found) ||
+			x0ji.Norm()/x0ji_len0 > 1.5)
+		{
+			trim_tag[niter] = 1;
+		}
 	}
+
+}
+
+
+__global__ void Trim1(
+	SimData_SPH data,
+	int num_particles
+) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_DEFORMABLE)
+		return;
+	
+
+	int localid_i = data.local_id[index];
+	
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	cfloat3* neighbordx = &data.neighbordx[localid_i*NUM_NEIGHBOR];
+	float* len0 = &data.length0[localid_i*NUM_NEIGHBOR];
+	
+	int* trim_tag = &data.trim_tag[localid_i*NUM_NEIGHBOR];
+	int& num_neighbor = neighborlist[0];
+	int trimed_id[NUM_NEIGHBOR];
+	int validcount = 1;
+
+	for (uint iter = 1; iter <= num_neighbor; iter++)
+	{
+		if (trim_tag[iter]==1)
+			trimed_id[iter]=-1;
+		else
+			trimed_id[iter]=validcount++;
+	}
+	
+	for (int iter=1; iter<=num_neighbor; iter++)
+	{
+		if (trimed_id[iter]!=-1) {
+			int tmp = trimed_id[iter];
+			neighborlist[tmp] = neighborlist[iter]; //substitute backward
+			neighbordx[tmp] = neighbordx[iter];
+			len0[tmp] = len0[iter];
+		}
+	}
+	int tmp = num_neighbor;
+	num_neighbor = validcount-1;
+	//if(num_neighbor < tmp)
+	//	printf("%d %d -> %d\n", data.uniqueId[index], tmp, num_neighbor);
 }
 
 
@@ -2884,10 +3184,12 @@ __device__ void FindNeighborsCell(
 		if (d2 >= sr2 || d2 < EPSILON || data.type[j]!=TYPE_DEFORMABLE)
 			continue;
 		
-
 		// build up neighbor list
 		if (neighborcount < NUM_NEIGHBOR) {
 			data.neighborlist[localid_i*NUM_NEIGHBOR + neighborcount] = data.uniqueId[j];
+			
+			data.neighbordx[localid_i*NUM_NEIGHBOR + neighborcount] = xij;
+			data.length0[localid_i*NUM_NEIGHBOR + neighborcount] = xij.Norm();
 			neighborcount ++;
 		}
 		else {
@@ -2901,6 +3203,9 @@ __device__ void FindNeighborsCell(
 	}
 }
 
+/*
+Build the neighbor list.
+*/
 __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 	int num_particles)
 {
@@ -2937,7 +3242,12 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 		kernel_tmp.data[3], kernel_tmp.data[4], kernel_tmp.data[5], 
 		kernel_tmp.data[6], kernel_tmp.data[7], kernel_tmp.data[8]);*/
 
-	data.correct_kernel[localid_i] = kernel_tmp.Inv();
+	//data.correct_kernel[localid_i] = kernel_tmp.Inv();
+	
+	cmat3& ck = data.correct_kernel[localid_i];
+	ck.Set(0.0);
+	ck[0][0]=1; ck[1][1]=1; ck[2][2]=1;
+	
 	data.x0[localid_i] = xi;
 	
 	//Set rotation matrix R to identitiy matrix.
@@ -2947,7 +3257,21 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 }
 
 
+__global__ void AdvectScriptObjectKernel(SimData_SPH data,
+	int num_particles,
+	cfloat3 vel)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index]!=TYPE_RIGID || data.group[index]!=2)
+		return;
 
+	//data.vel[index].Set(0, -0.5, 0);
+	data.vel[index] = vel;
+	data.pos[index] += data.vel[index] * dParam.dt;
+
+}
 
 
 };

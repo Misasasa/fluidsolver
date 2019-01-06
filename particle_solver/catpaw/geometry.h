@@ -220,6 +220,9 @@ struct cmat3
 	HDFUNC cmat3 Inv() {
 		cmat3 inv;
 		float det = Det();
+		if (fabs(det)<1e-10) {
+			return inv;
+		}
 		inv[0][0] = (data[4]*data[8]-data[5]*data[7])/det;
 		inv[0][1] = (data[2]*data[7]-data[1]*data[8])/det;
 		inv[0][2] = (data[1]*data[5]-data[2]*data[4])/det;
@@ -232,9 +235,20 @@ struct cmat3
 		return inv;
 	}
 
+	HDFUNC float Norm() {
+		float norm=0;
+		for(int k=0;k<9;k++)
+			norm += data[k]*data[k];
+		return sqrt(norm);
+	}
+
 	HDFUNC void Add(cmat3& b) {
 		for(int k=0; k<9; k++)
 			data[k] = data[k] + b.data[k];
+	}
+	HDFUNC void Multiply(float b) {
+		for(int k=0;k<9;k++)
+			data[k] = data[k]*b;
 	}
 
 	HDFUNC cfloat3 Col(int n) {

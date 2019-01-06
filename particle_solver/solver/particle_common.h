@@ -15,6 +15,12 @@
 #define TYPE_NULL 99
 #define NUM_NEIGHBOR 40
 
+
+/* Yield criterion for elasto-plastic solids.
+*/
+#define VON_MISES 1
+#define DRUCKER_PRAGER 2
+
 struct fluidvol {
 	cfloat3 xmin;
 	cfloat3 xmax;

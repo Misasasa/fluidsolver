@@ -30,7 +30,6 @@ void SPHSolver::Copy2Device() {
 	cudaMemcpy(device_data.restDensity, host_rest_density.data(), num_particles * sizeof(float), cudaMemcpyHostToDevice);
 	
 	//Deformable Solid properties.
-	//cudaMemcpy(device_data.cauchy_stress, host_cauchy_stress.data(), num_particles*sizeof(cmat3), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.local_id, host_localid.data(),num_particles*sizeof(int), cudaMemcpyHostToDevice);
 
 	CopyParam2Device();
@@ -211,22 +210,29 @@ void SPHSolver::SolveMultiphaseSPH() {
 	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, 2, false,  true);
 	//printf("density solve %f\n", clock.tack()*1000); 
 	
+	if (advect_scriptobject_on) {
+		
+		if(frame_count<524)
+			AdvectScriptObject(device_data, num_particles, cfloat3(0,-0.5,0));
+		else
+			AdvectScriptObject(device_data, num_particles, cfloat3(0, 0.5, 0));
+		//RigidParticleVolume(device_data, num_particles);
+	}
+		
+
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
 	//printf("sort %f\n", clock.tack()*1000); 
-	
+
 	//clock.tick();
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 2, 0.5, false, true);
+	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
 	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
 
 
 	//update deformation gradient F
-	UpdateSolidState(device_data, num_particles);
-
-	//plastic projection
-	//PlasticProjection(device_data, num_particles);
-	
+	UpdateSolidState(device_data, num_particles, VON_MISES);
+	UpdateSolidTopology(device_data, num_particles);
 
 	//PhaseDiffusion_Host();
 
@@ -447,10 +453,6 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	float smoothratio = reader.GetFloat("SmoothRatio");
 	hParam.smoothradius = hParam.spacing * smoothratio;
 
-	hParam.boundstiff = reader.GetFloat("BoundStiff");
-	hParam.bounddamp = reader.GetFloat("BoundDamp");
-	hParam.softminx = reader.GetFloat3("SoftBoundMin");
-	hParam.softmaxx = reader.GetFloat3("SoftBoundMax");
 	hParam.viscosity = reader.GetFloat("Viscosity");
 	hParam.restdensity = reader.GetFloat("RestDensity");
 	hParam.pressureK = reader.GetFloat("PressureK");
@@ -474,10 +476,12 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	float E = reader.GetFloat("YoungsModulus");
 	float v = reader.GetFloat("PoissonsRatio");
 	hParam.Yield = reader.GetFloat("Yield");
+	hParam.plastic_flow = reader.GetFloat("PlasticFlow");
 	hParam.solidG = E/2/(1+v);
 	hParam.solidK = E/3/(1-2*v);
 	hParam.solid_visc = reader.GetFloat("SolidViscosity");
 	printf("G,K,solidvisc: %f %f %f\n", hParam.solidG, hParam.solidK, hParam.solid_visc);
+
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -486,9 +490,8 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	//               Particle Boundary
 	//=============================================
 	reader.Use(boundElement);
-	hParam.bRestdensity = reader.GetFloat("RestDensity");
-	hParam.bvisc = reader.GetFloat("Viscosity");
-	hParam.boundstiff = reader.GetFloat("BoundStiff");
+	hParam.boundary_visc = reader.GetFloat("Viscosity");
+	hParam.boundary_friction = reader.GetFloat("Friction");
 }
 
 
@@ -503,13 +506,15 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.num_fluid_p = 0;
 	for(int k=0; k<100; k++) 
 		localid_counter[k]=0;
+	
+	emit_particle_on = false;
+	advect_scriptobject_on = true;
+
 
 
 	ParseParam(xmlpath);
 
 	hParam.dx = hParam.smoothradius;
-	float sr = hParam.smoothradius;
-
 	hParam.gridres.x = roundf((hParam.gridxmax.x - hParam.gridxmin.x)/hParam.dx);
 	hParam.gridres.y = roundf((hParam.gridxmax.y - hParam.gridxmin.y)/hParam.dx);
 	hParam.gridres.z = roundf((hParam.gridxmax.z - hParam.gridxmin.z)/hParam.dx);
@@ -517,9 +522,10 @@ void SPHSolver::LoadParam(char* xmlpath) {
 
 	domainMin = hParam.gridxmin;
 	domainMax = hParam.gridxmax;
-	
+	dt = hParam.dt;
 
 	//Precompute kernel constant factors.
+	float sr = hParam.smoothradius;
 	hParam.kpoly6 = 315.0f / (64.0f * 3.141592 * pow(sr, 9.0f));
 	hParam.kspiky =  15 / (3.141592 * pow(sr, 6.0f));
 	hParam.kspikydiff = -45.0f / (3.141592 * pow(sr, 6.0f));
@@ -527,10 +533,6 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.kernel_cubic = 1/3.141593/pow(sr/2,3);
 	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
 	
-	
-	
-	emit_particle_on = false;
-	dt = hParam.dt;
 }
 
 void SPHSolver::SetupHostBuffer() {
@@ -600,6 +602,73 @@ void SPHSolver::Addfluidvolumes() {
 	}
 }
 
+void SPHSolver::AddTestVolume() {
+	cfloat3 xmin( -0.12, 0.011, -0.12);
+	cfloat3 xmax( 0.12, 0.241, 0.12 );
+	int addcount=0;
+
+	float spacing = hParam.spacing;
+	float density1 = 0, density2 = 0;
+	
+	float vf1[3]={1,0,0};
+	float vf2[3]={0,1,0};
+	for (int t=0; t<hParam.maxtypenum; t++){
+		density1 += hParam.densArr[t] * vf1[t];
+		density2 += hParam.densArr[t] * vf2[t];
+	}
+
+	float vol   = spacing*spacing*spacing;
+	int type;
+	float pad = 0.03;
+	for (float x=xmin.x; x<xmax.x; x+=spacing)
+		for (float y=xmin.y; y<xmax.y; y+=spacing)
+			for (float z=xmin.z; z<xmax.z; z+=spacing) {
+				int pid = AddDefaultParticle();
+				
+				host_x[pid] = cfloat3(x, y, z);
+				
+				if (x>xmin.x+pad && x<xmax.x-pad 
+					&& y>xmin.y+pad && y<xmax.y-pad 
+					&& z>xmin.z+pad && z<xmax.z-pad)
+				{
+					host_color[pid]=cfloat4(vf2[0], vf2[1], vf2[2], 1);
+
+					type = TYPE_FLUID;
+					host_type[pid] = type;
+
+					host_group[pid] = 0;
+					host_mass[pid] = vol * density2;
+					host_rest_density[pid] = density2;
+					host_localid[pid] = localid_counter[type]++;
+
+					for (int t=0; t<hParam.maxtypenum; t++)
+						host_vol_frac[pid*hParam.maxtypenum+t] = vf2[t];
+					hParam.num_fluid_p += 1;
+
+				}
+				else {
+					host_color[pid]=cfloat4(vf1[0], vf1[1], vf1[2], 1);
+
+					type = TYPE_DEFORMABLE;
+					host_type[pid] = type;
+
+					host_group[pid] = 0;
+					host_mass[pid] = vol * density1;
+					host_rest_density[pid] = density1;
+					host_localid[pid] = localid_counter[type]++;
+
+					for (int t=0; t<hParam.maxtypenum; t++)
+						host_vol_frac[pid*hParam.maxtypenum+t] = vf1[t];
+					hParam.num_deformable_p += 1;
+				}
+				
+
+				addcount += 1;
+			}
+	
+	printf("test block No. %d has %d particles.\n", 0, addcount);
+}
+
 void SPHSolver::AddMultiphaseFluidVolumes() {
 
 	for (int i=0; i<fluid_volumes.size(); i++) {
@@ -664,7 +733,7 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0.0);
+		host_color[pid] = cfloat4(1,1,1,0.5);
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
@@ -676,7 +745,8 @@ void SPHSolver::SetupFluidScene() {
 	LoadParam("config/sph_scene.xml");
 	SetupHostBuffer();
 
-	AddMultiphaseFluidVolumes();
+	//AddMultiphaseFluidVolumes();
+	AddTestVolume();
 
 	BoundaryGenerator bg;
 	ParticleObject* boundary = bg.loadxml("script_object/big box.xml");
@@ -776,13 +846,16 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
 	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
+	cudaMalloc(&device_data.neighbordx, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(cfloat3));
 	cudaMalloc(&device_data.correct_kernel, hParam.num_deformable_p*sizeof(cmat3));
 	cudaMalloc(&device_data.x0, hParam.num_deformable_p*sizeof(cfloat3));
 	cudaMalloc(&device_data.rotation, hParam.num_deformable_p*sizeof(cmat3));
+	cudaMalloc(&device_data.trim_tag, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
+	cudaMalloc(&device_data.length0,  hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(float));
 
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
-
+	
 
 
 	int glen = hParam.gridres.prod();

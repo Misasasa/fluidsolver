@@ -57,7 +57,7 @@ public:
 	float time;
 	
 	bool emit_particle_on;
-
+	bool advect_scriptobject_on;
 
 
 
@@ -96,6 +96,7 @@ public:
 	// Multiphase Fluid
 	void SetupMultiphaseSPH();
 	void AddMultiphaseFluidVolumes();
+	void AddTestVolume();
 	void SetupMultiphaseSPHRen();
 
 	/* Rigid bodies, deformables. */

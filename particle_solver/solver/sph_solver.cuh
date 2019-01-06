@@ -54,15 +54,17 @@ struct SimParam_SPH {
 	float solidG;
 	float Yield;
 	float solid_visc;
+	float plastic_flow;
 
 	//boundary
-	cfloat3 softminx;
-	cfloat3 softmaxx;
-	float boundstiff;
-	float bounddamp;
-	float bmass;
-	float bRestdensity;
-	float bvisc;
+	//cfloat3 softminx;
+	//cfloat3 softmaxx;
+	//float boundstiff;
+	//float bounddamp;
+	//float bmass;
+	//float bRestdensity;
+	float boundary_visc;
+	float boundary_friction;
 };
 
 struct SimData_SPH {
@@ -123,11 +125,15 @@ struct SimData_SPH {
 	// Deformable Solid
 	cmat3* strain_rate;
 	cmat3* cauchy_stress;
-	int* neighborlist; //store uniqueid
-	int* local_id; //id within the same type
+	int* neighborlist;   //store uniqueid
+	cfloat3* neighbordx; //store x0_ij
+	float* length0;
+	int* local_id;       //id within the same type
 	cmat3* correct_kernel;
-	cfloat3* x0; //initial coordinates
+	cfloat3* x0;         //initial coordinates
 	cmat3* rotation;
+	cmat3* Fp;			//plastic part of deformation gradient
+	int* trim_tag;
 
 	cmat3* sorted_cauchy_stress;
 	int*   sorted_local_id;
@@ -257,10 +263,10 @@ void PhaseDiffusion_Ren(SimData_SPH data, int num_p);
 
 /**********      Solid       ***********/
 void ComputeTension(SimData_SPH data, int num_particles);
-void UpdateSolidState(SimData_SPH data, int num_particles);
-void PlasticProjection(SimData_SPH data, int num_particles);
+void UpdateSolidState(SimData_SPH data, int num_particles, int projection_type);
+void UpdateSolidTopology(SimData_SPH data, int num_particles);
 
-
+void AdvectScriptObject(SimData_SPH data, int num_particles, cfloat3 vel);
 
 };
 

@@ -547,29 +547,55 @@ void ComputeTension(SimData_SPH data, int num_particles) {
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	ComputeTensionWithP_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+
+	//ComputeTensionCauchyStressKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: detect dispersed particles");
 
 }
 
-void UpdateSolidState(SimData_SPH data, int num_particles) {
+void UpdateSolidState(
+	SimData_SPH data, 
+	int num_particles,
+	int projection_type
+) 
+{
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
 	//UpdateSolidStateVGrad_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
-	UpdateSolidStateF_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	UpdateSolidStateF_Kernel <<<num_blocks, num_threads>>>(
+		data, 
+		num_particles, 
+		projection_type);
 
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel failed: update solid state");
 }
 
-void PlasticProjection(SimData_SPH data, int num_particles) {
+void UpdateSolidTopology(
+	SimData_SPH data,
+	int num_particles
+)
+{
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	PlasticProjection_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaMemset(data.trim_tag, 0, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
+
+	Trim0 <<<num_blocks, num_threads>>>(
+		data,
+		num_particles);
 	cudaThreadSynchronize();
-	getLastCudaError("Kernel execution failed: detect dispersed particles");
+	getLastCudaError("Kernel failed: trim0");
+
+	Trim1 <<<num_blocks, num_threads>>>(
+		data,
+		num_particles);
+
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: trim1");
 }
 
 
@@ -581,6 +607,25 @@ void InitializeDeformable(SimData_SPH data, int num_particles) {
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel failed: initialize deformables");
 }
+
+
+
+void AdvectScriptObject(SimData_SPH data, 
+	int num_particles,
+	cfloat3 vel) 
+{
+
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	AdvectScriptObjectKernel <<<num_blocks, num_threads>>>(
+		data, 
+		num_particles,
+		vel);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: initialize deformables");
+}
+
 
 
 /*
