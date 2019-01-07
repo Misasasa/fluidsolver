@@ -172,8 +172,8 @@ void SPHSolver::PhaseDiffusion_Host() {
 
 	DriftVelocity(device_data, num_particles);
 
-	//PhaseDiffusion(device_data, num_particles, NULL, frame_count);
-	PhaseDiffusion(device_data, num_particles);
+	PhaseDiffusion(device_data, num_particles, NULL, frame_count);
+	//PhaseDiffusion(device_data, num_particles);
 	
 	EffectiveMass(device_data, num_particles);
 
@@ -208,7 +208,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 
 	//clock.tick();
 	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, 2, false,  true);
-	//printf("density solve %f\n", clock.tack()*1000); 
+	//clock.tack("density solve");
 	
 	if (advect_scriptobject_on) {
 		
@@ -223,18 +223,19 @@ void SPHSolver::SolveMultiphaseSPH() {
 	Sort();
 	
 	DFSPHFactor_Multiphase(device_data, num_particles);
-	//printf("sort %f\n", clock.tack()*1000); 
+	
 
 	//clock.tick();
 	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
-	//printf("divergence solve %f\n", clock.tack()*1000); clock.tick();
+	//clock.tack("divergence solve"); clock.tick();
 
 
 	//update deformation gradient F
 	UpdateSolidState(device_data, num_particles, VON_MISES);
+	
 	UpdateSolidTopology(device_data, num_particles);
 
-	//PhaseDiffusion_Host();
+	PhaseDiffusion_Host();
 
 
 	CopyFromDevice();
@@ -480,8 +481,12 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.solidG = E/2/(1+v);
 	hParam.solidK = E/3/(1-2*v);
 	hParam.solid_visc = reader.GetFloat("SolidViscosity");
+	hParam.dissolution = reader.GetFloat("Dissolution");
 	printf("G,K,solidvisc: %f %f %f\n", hParam.solidG, hParam.solidK, hParam.solid_visc);
-
+	reader.GetFloatN(hParam.max_alpha, hParam.maxtypenum, "MaxVFraction");
+	/*hParam.max_alpha[0] = 1;
+	hParam.max_alpha[1] = 1;
+	hParam.max_alpha[2] = 1;*/
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -509,7 +514,7 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	
 	emit_particle_on = false;
 	advect_scriptobject_on = true;
-
+	hParam.enable_dissolution = true;
 
 
 	ParseParam(xmlpath);
@@ -745,11 +750,11 @@ void SPHSolver::SetupFluidScene() {
 	LoadParam("config/sph_scene.xml");
 	SetupHostBuffer();
 
-	//AddMultiphaseFluidVolumes();
-	AddTestVolume();
+	AddMultiphaseFluidVolumes();
+	//AddTestVolume();
 
 	BoundaryGenerator bg;
-	ParticleObject* boundary = bg.loadxml("script_object/big box.xml");
+	ParticleObject* boundary = bg.loadxml("config/water tank.xml");
 	LoadPO(boundary);
 	delete boundary;
 

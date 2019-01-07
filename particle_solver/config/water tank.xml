@@ -1,0 +1,33 @@
+<Boundary>
+
+    <OpenBox>
+        <xmin> -0.2, 0.000, -0.1 </xmin>
+        <xmax>  0.2, 0.2, 0.1 </xmax>
+        <spacing> 0.005 </spacing>
+        <id> 0 </id>
+    </OpenBox>
+
+    <OpenBox>
+        <xmin> -0.37, -0.01, -0.37 </xmin>
+        <xmax>  0.37, -0.00, 0.37 </xmax>
+        <spacing> 0.005 </spacing>
+        <id> 0 </id>
+    </OpenBox>
+
+    <!--Cube>
+        <xmin>  -0.3,  0.25, -0.3 </xmin>
+        <xmax>  0.3, 0.251, 0.3 </xmax>
+        <spacing> 0.005 </spacing>
+        <normal> 0,-1,0 </normal>
+        <id> 2 </id>
+    </Cube-->
+
+    <!--Box>
+        <xmin> -0.156, 0.005, -0.156 </xmin>
+        <xmax>  0.156, 0.5, 0.156 </xmax>
+        <spacing> 0.005 </spacing>
+        <id> 0 </id>
+    </Box-->
+
+
+</Boundary>

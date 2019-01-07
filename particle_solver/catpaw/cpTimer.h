@@ -22,6 +22,13 @@ namespace catpaw{
 			duration<double> time_span = duration_cast<duration<double>>(t2-t1);
 			return time_span.count();
 		}
+
+		inline double tack(const char* str) {
+			t2 = steady_clock::now();
+			duration<double> time_span = duration_cast<duration<double>>(t2-t1);
+			printf("%s %f ms\n", str, time_span.count()*1000);
+			return time_span.count();
+		}
 	};
 	
 }

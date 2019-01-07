@@ -55,16 +55,16 @@ struct SimParam_SPH {
 	float Yield;
 	float solid_visc;
 	float plastic_flow;
+	float dissolution; //dissolution constant factor
+	float max_alpha[10]; //max volume fraction of each single phase
 
 	//boundary
-	//cfloat3 softminx;
-	//cfloat3 softmaxx;
-	//float boundstiff;
-	//float bounddamp;
-	//float bmass;
-	//float bRestdensity;
 	float boundary_visc;
 	float boundary_friction;
+	
+	//Switch
+	bool enable_dissolution;
+	bool enable_melt;
 };
 
 struct SimData_SPH {

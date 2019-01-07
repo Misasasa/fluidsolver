@@ -548,8 +548,6 @@ void ComputeTension(SimData_SPH data, int num_particles) {
 
 	ComputeTensionWithP_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
 
-	//ComputeTensionCauchyStressKernel <<<num_blocks, num_threads>>>(data, num_particles);
-	
 	cudaThreadSynchronize();
 	getLastCudaError("Kernel execution failed: detect dispersed particles");
 
@@ -564,7 +562,6 @@ void UpdateSolidState(
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
-	//UpdateSolidStateVGrad_Kernel <<<num_blocks, num_threads>>>(data, num_particles);
 	UpdateSolidStateF_Kernel <<<num_blocks, num_threads>>>(
 		data, 
 		num_particles, 

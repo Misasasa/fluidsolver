@@ -1705,83 +1705,27 @@ __global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 }
 
 
-__device__ void VolumeFractionGradientCell(
-	cint3 cell_index,
-	int i,
-	cfloat3 xi,
-	SimData_SPH& data,
-	cfloat3* vol_frac_gradient)
-{
-	uint grid_hash = calcGridHash(cell_index);
-	if(grid_hash==GRID_UNDEF)
-		return;
-	uint start_index = data.gridCellStart[grid_hash];
-	if (start_index == 0xffffffff) return;
-	uint end_index = data.gridCellEnd[grid_hash];
-	float sr = dParam.smoothradius;
-	float sr2 = sr*sr;
-	
-	for (uint j = start_index; j < end_index; j++)
-	{
-		if (j == i || data.type[j]==TYPE_RIGID) 
-			continue;
-
-		cfloat3 xj = data.pos[j];
-		cfloat3 xij = xi - xj;
-		float d2 = xij.square();
-		if (d2 >= sr2) continue;
-
-		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
-		float vj = data.mass[j] / data.density[j];
-		cfloat3 contribution;
-		
-		for (int k=0; k<dParam.maxtypenum; k++) {
-			contribution = nabla_w * vj * 
-				(data.vFrac[j*dParam.maxtypenum+k] - data.vFrac[i*dParam.maxtypenum+k]);
-			vol_frac_gradient[k] += contribution;
-		}
-	}
-}
-
-
 
 __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	if (index >= num_particles) return;
-	if (data.type[index]==TYPE_RIGID) return;
+	if (index >= num_particles) 
+		return;
+
+	/*
+	Drift velocity here only contains the first term, i.e. the inertial separating term.
+	This term is only valid for fluid particles.
+	*/
+
+	if (data.type[index]!=TYPE_FLUID)
+		return;
 
 	cfloat3 xi = data.pos[index];
-	cint3 cell_index = calcGridPos(xi);
 	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
-	cfloat3* vol_frac_gradient = &data.vol_frac_gradient[index*dParam.maxtypenum];
-
-
-	//float turbulent_diffusion = dParam.drift_turbulent_diffusion;
-	float turbulent_diffusion = data.vel[index].square() * dParam.drift_turbulent_diffusion + dParam.drift_thermal_diffusion;
-	for(int k=0; k<dParam.maxtypenum; k++) 
-		vol_frac_gradient[k].Set(0,0,0); //initialization
 	
-	for (int z=-1; z<=1; z++) 
-		for (int y=-1; y<=1; y++)	
-			for (int x=-1; x<=1; x++) {
-				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
-				VolumeFractionGradientCell(
-					neighbor_cell_index, 
-					index,
-					xi, 
-					data, 
-					vol_frac_gradient);
-			}
-	for (int k=0; k<dParam.maxtypenum; k++) 
-		vol_frac_gradient[k] *= turbulent_diffusion;
-
-
 	cfloat3 drift_acceleration = data.v_star[index];
 	float dynamic_constant = dParam.drift_dynamic_diffusion; 
-	// 4*0.005/3/0.44
 
 	float rest_density = data.restDensity[index];
-	float accel_mode = drift_acceleration.Norm();
 	float* vol_frac = data.vFrac + index*dParam.maxtypenum;
 
 	for (int k=0; k<dParam.maxtypenum; k++) {
@@ -1797,10 +1741,6 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 		float density_factor = (density_k - rest_density) / rest_density;
 		cfloat3 drift_vk = drift_acceleration * dynamic_constant * density_factor;
 		drift_v[k] = drift_vk;
-
-		if (dot(drift_v[k], drift_v[k])>100) {
-			printf("super drift? %f %f %f from %f %f %f\n", drift_v[k].x, drift_v[k].y, drift_v[k].z, drift_acceleration.x, drift_acceleration.y, drift_acceleration.z);
-		}
 	}
 }
 
@@ -1810,65 +1750,81 @@ __device__ void PredictPhaseDiffusionCell(
 	cfloat3 xi,
 	float vol_i,
 	SimData_SPH& data,
-	float* phase_update) {
+	float* vol_frac_change) {
 
 	uint grid_hash = calcGridHash(cell_index);
-	if(grid_hash==GRID_UNDEF) return;
+	if(grid_hash==GRID_UNDEF) 
+		return;
 	uint start_index = data.gridCellStart[grid_hash];
-	if (start_index == 0xffffffff) return;
+	if (start_index == 0xffffffff)
+		return;
 	uint end_index = data.gridCellEnd[grid_hash];
 	
 	float sr = dParam.smoothradius;
-	float sr2 = sr*sr;
+	float sr2 = sr*sr; 
+	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
 	int num_type = dParam.maxtypenum;
+	
+	
+	
 	float turbulenti = data.vel[i].square() * dParam.drift_turbulent_diffusion 
 		+ dParam.drift_thermal_diffusion;
 
-	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
+	float dissolution_factor = dParam.dissolution;
 
 	for (uint j = start_index; j < end_index; j++)
 	{
-		if (j == i || data.type[j]==TYPE_RIGID) 
+		if (data.type[j]==TYPE_RIGID || j == i )
 			continue;
 
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
 		float d2 = xij.square();
-		if (d2 >= sr2) continue;
+		if (d2 >= sr)
+			continue;
 
 		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		float vol_j = data.mass[j] / data.density[j];
+		float fac = dot(xij, nabla_w)/(d2+0.01*sr2*0.25)*2;
 		
-		float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
-			+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
-
-		cfloat3 flux_k;
-		
-		for (int k=0; k<num_type; k++) {
-			//dynamic flux
-			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
-				+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-			phase_update[k] += dot(flux_k, nabla_w) * (-1);
-
-			//turbulent diffusion
-			/* Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
-			volume fraction.
-			*/
-			/*
-			flux_k = data.vol_frac_gradient[i*num_type+k]*vol_i
-				+ data.vol_frac_gradient[j*num_type+k]*vol_j;
-			phase_update[k] += dot(flux_k, nabla_w) * (-1);	
-			*/
-
-			/* Evaluate nabla^2 alpha instead. */
+		/* Inertial separating flux only happens between fluid particles.*/
+		if (data.type[i]==TYPE_FLUID && data.type[j]==TYPE_FLUID) {
 			
-			
+			cfloat3 flux_k;
 
-			float fac = dot(xij, nabla_w)/(d2+0.01*sr2*0.25)*2;
-			//fac *= data.vFrac[i*num_type+k]*vol_i - data.vFrac[j*num_type+k]*vol_j;
-			fac *= data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k];
-			phase_update[k] -= fac * turbulentj * vol0;
+			/* The turbulent factor is averaged between particle i and j. */
+			float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
+				+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
+
+			for (int k=0; k<num_type; k++) {
+				flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
+					+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
+				vol_frac_change[k] += dot(flux_k, nabla_w) * (-1);
+				
+				/* turbulent diffusion
+				Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
+				volume fraction. Evaluate nabla^2 alpha instead. */
+
+				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
+				vol_frac_change[k] -= factmp * turbulentj * vol0;
+			}
 		}
+		//else if( dParam.enable_dissolution )
+		///* i: fluid or deformable, j: fluid or deformable,
+		//this branch means (i,j) = (fluid, deformable) or (deformable, fluid)*/
+		//{
+		//	float vik, vjk;
+		//	for (int k=0; k<num_type; k++) {
+
+		//		vik = fmin(data.vFrac[i*num_type+k], dParam.max_alpha[k]);
+		//		vjk = fmin(data.vFrac[j*num_type+k], dParam.max_alpha[k]);
+
+		//		//float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
+		//		float factmp = fac * (vik - vjk);
+		//		vol_frac_change[k] -= factmp * dissolution_factor * vol0;
+		//	}
+		//}
+		
 	}
 
 }
@@ -1901,20 +1857,28 @@ __global__ void PredictPhaseDiffusionKernel(SimData_SPH data, int num_particles)
 			vol_frac_change);
 	}
 
-	//get flux multiplier: lambda_i for each particle
+	//Get flux multiplier lambda for each particle.
 	
 	float lambda = 1;
 	for (int k=0; k<dParam.maxtypenum; k++) {
-		if(vol_frac_change[k]>=0) continue;
+		
+		if(vol_frac_change[k]>=0) 
+			continue;
+
 		if (data.vFrac[index*dParam.maxtypenum+k]<EPSILON) {
 			lambda=0;
 			continue;
 		}
+
 		float lambda_k = data.vFrac[index*dParam.maxtypenum+k]/dParam.dt
 			/abs(vol_frac_change[k]);
-		if(lambda_k < lambda) lambda = lambda_k;
+		
+		// Always keep the smallest value.
+		if(lambda_k < lambda)
+			lambda = lambda_k;
 	}
 	data.phase_diffusion_lambda[index] = lambda;
+
 }
 
 
@@ -1938,11 +1902,15 @@ __device__ void PhaseDiffusionCell(
 	
 	float sr = dParam.smoothradius;
 	float sr2 = sr*sr;
+	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
 	int num_type = dParam.maxtypenum;
+
+
+
 	float turbulenti = data.vel[i].square() * dParam.drift_turbulent_diffusion
 		+ dParam.drift_thermal_diffusion;
-	float lambda_ij, inc;
-	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
+
+	float dissolution_factor = dParam.dissolution;
 
 	for (uint j = start_index; j < end_index; j++)
 	{
@@ -1955,40 +1923,66 @@ __device__ void PhaseDiffusionCell(
 		if (d2 >= sr2)
 			continue;
 
-		cfloat3 nabla_w = KernelGradient_Cubic(sr*0.5, xij);
+
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
 		float vol_j = data.mass[j] / data.density[j];
-		float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
-			+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
-
-		cfloat3 flux_k;
-
-		lambda_ij = fmin(data.phase_diffusion_lambda[i], data.phase_diffusion_lambda[j]);
-		
 		float fac = dot(xij, nabla_w)/(d2+0.01*sr2*0.25)*2;
+		float lambda_ij = fmin(data.phase_diffusion_lambda[i], data.phase_diffusion_lambda[j]);
+		
+		/* Inertial separating flux only happens between fluid particles.*/
+		if (data.type[i]==TYPE_FLUID && data.type[j]==TYPE_FLUID) {
 
-		for (int k=0; k<dParam.maxtypenum; k++) {
-			flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
-				+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-			inc = dot(flux_k, nabla_w) * (-1) * lambda_ij;
-			vol_frac_change[k] += inc;
+			cfloat3 flux_k;
 
-			//turbulent diffusion
-			/*
-			flux_k = data.vol_frac_gradient[i*num_type+k]*vol_i
-				+ data.vol_frac_gradient[j*num_type+k]*vol_j;
-			inc = dot(flux_k, nabla_w) * (-1) * lambda_ij;
-			vol_frac_change[k] += inc;
+			/* The turbulent factor is averaged between particle i and j. */
+			float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
+				+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
+
+			for (int k=0; k<num_type; k++) {
+				flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
+					+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
+				vol_frac_change[k] += dot(flux_k, nabla_w) * (-1) * lambda_ij;
+
+				/* turbulent diffusion
+				Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
+				volume fraction. Evaluate nabla^2 alpha instead. */
+
+				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
+				vol_frac_change[k] -= factmp * turbulentj * vol0 * lambda_ij;
+			}
+		}
+		else if( dParam.enable_dissolution && !(data.type[i]==TYPE_DEFORMABLE && data.type[j]==TYPE_DEFORMABLE) )
+			/* i: fluid or deformable, j: fluid or deformable,
+			this branch means (i,j) = (fluid, deformable) or (deformable, fluid)*/
+		{
+			bool dissolution = true;
+			int fid;
+			if(data.type[i]==TYPE_FLUID) fid = i;
+			else fid = j;
+			/* check if saturation is reached. This is not normalized with lambdaij, since
+			no negative volume fraction appears in this process. 
 			*/
 
-			
-			//fac *= data.vFrac[i*num_type+k]*vol_i - data.vFrac[j*num_type+k]*vol_j;
-			float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
+			float vik, vjk;
+			for (int k=0; k<num_type; k++) {
+				if(data.vFrac[fid*num_type+k] >= dParam.max_alpha[k])
+					dissolution = false;
+			}
 
-			vol_frac_change[k] -= factmp * turbulentj *vol0* lambda_ij;
+			/* Particles exchange the component only when on saturation happens.
+			*/
+
+			if (dissolution)
+			{
+				for (int k=0; k<num_type; k++) {
+					float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);	
+					vol_frac_change[k] -= factmp * dissolution_factor * vol0;
+				}
+			}
 		}
-
 	}
 }
+
 
 __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
@@ -2008,7 +2002,7 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	float* vol_frac_change = &data.vol_frac_change[index*dParam.maxtypenum];
 
 	for (int k=0; k<dParam.maxtypenum; k++) 
-		vol_frac_change[k]=0; //initialization
+		vol_frac_change[k]=0;
 
 	for (int z=-1; z<=1; z++) 
 		for (int y=-1; y<=1; y++)	
@@ -2026,6 +2020,8 @@ __global__ void PhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 			}
 	
 }
+
+
 
 __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
@@ -2057,6 +2053,47 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 The drift velocity and alpha_gradient for Ren's model is
 actually the same as ours.
 */
+
+
+__device__ void VolumeFractionGradientCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	cfloat3* vol_frac_gradient)
+{
+	uint grid_hash = calcGridHash(cell_index);
+	if (grid_hash==GRID_UNDEF)
+		return;
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff) return;
+	uint end_index = data.gridCellEnd[grid_hash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (j == i || data.type[j]==TYPE_RIGID)
+			continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.square();
+		if (d2 >= sr2) continue;
+
+		cfloat3 nabla_w = KernelGradient_Cubic(sr/2, xij);
+		float vj = data.mass[j] / data.density[j];
+		cfloat3 contribution;
+
+		for (int k=0; k<dParam.maxtypenum; k++) {
+			contribution = nabla_w * vj *
+				(data.vFrac[j*dParam.maxtypenum+k] - data.vFrac[i*dParam.maxtypenum+k]);
+			vol_frac_gradient[k] += contribution;
+		}
+	}
+}
+
+
 __global__ void DriftVelRenKernel(SimData_SPH data, int nump)
 {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
