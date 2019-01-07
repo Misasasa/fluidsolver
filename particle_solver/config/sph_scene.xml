@@ -49,8 +49,8 @@
 	<SurfaceTension> 200 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> -0.0000 </DriftThermalDiffusion>
-	<DriftTurbulentDiffusion> -0.000 </DriftTurbulentDiffusion>
+	<DriftThermalDiffusion> 0.0000 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> 0.000 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 </MultiScene>
 
@@ -81,8 +81,8 @@
 	</Vol>
 
 	<DriftDynamicDiffusion> 0.015 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> -0.000 </DriftThermalDiffusion>
-	<DriftTurbulentDiffusion> -0.001 </DriftTurbulentDiffusion>
+	<DriftThermalDiffusion> 0.000 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> 0.001 </DriftTurbulentDiffusion>
 </MultiScene>
 
 <MultiScene id="3">
@@ -119,7 +119,7 @@
 	<SurfaceTension> 100 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.0015 </DriftDynamicDiffusion>
-	<DriftTurbulentDiffusion> -0.000 </DriftTurbulentDiffusion>
+	<DriftTurbulentDiffusion> 0.000 </DriftTurbulentDiffusion>
 </MultiScene>
 
 
@@ -167,8 +167,8 @@
 	<SurfaceTension> 100 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.01 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> -0.001 </DriftThermalDiffusion>
-	<DriftTurbulentDiffusion> -0.005 </DriftTurbulentDiffusion>
+	<DriftThermalDiffusion> 0.001 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> 0.005 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 
 	<YoungsModulus> 50000 </YoungsModulus>
@@ -193,8 +193,8 @@
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.15,  0.01,  -0.04	</VolMin>
-		<VolMax>	-0.07,  0.09,  0.04	</VolMax>
+		<VolMin>	-0.15,  0.01,  -0.06	</VolMin>
+		<VolMax>	-0.05,  0.10,  0.06	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 		<Type>deformable</Type>
@@ -210,7 +210,7 @@
 
 	<Vol>
 		<VolMin>	0.01,  0.011,  -0.06	</VolMin>
-		<VolMax>	0.15,  0.2,  0.061	</VolMax>
+		<VolMax>	0.15,  0.10,  0.061	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
 		<Group> 0 </Group>
 		<Type>fluid</Type>
@@ -219,8 +219,8 @@
 	<SurfaceTension> 100 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.0 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> -0.01 </DriftThermalDiffusion>
-	<DriftTurbulentDiffusion> -0.0 </DriftTurbulentDiffusion>
+	<DriftThermalDiffusion> 0.01 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> 0.0 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 
 	<YoungsModulus> 25000 </YoungsModulus>
@@ -228,8 +228,12 @@
 	<Yield> 5000 </Yield>
 	<SolidViscosity> 0.5 </SolidViscosity>
 	<PlasticFlow> 10 </PlasticFlow>
-	<Dissolution> -0.01 </Dissolution>
-	<MaxVFraction> 0.2,1.1,1.1 </MaxVFraction>
+	<Dissolution> 0.01 </Dissolution>
+	<HeatFlowRate> 0.01 </HeatFlowRate>
+	<MeltPoint> </MeltPoint>
+	
+	<MaxVFraction> 0.4,1.1,1.1 </MaxVFraction>
+	<HeatCapacity> 1, 1, 1 </HeatCapacity>
 </MultiScene>
 
 <BoundInfo id="1">

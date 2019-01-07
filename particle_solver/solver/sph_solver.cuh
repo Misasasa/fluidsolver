@@ -57,6 +57,10 @@ struct SimParam_SPH {
 	float plastic_flow;
 	float dissolution; //dissolution constant factor
 	float max_alpha[10]; //max volume fraction of each single phase
+	float heat_flow_rate;
+	float melt_point;
+	float latent_heat;
+	float heat_capacity[10];
 
 	//boundary
 	float boundary_visc;
@@ -114,12 +118,14 @@ struct SimData_SPH {
 	float* phase_diffusion_lambda;
 	float* vol_frac_change;
 	float* spatial_status;
-	
+	float* temperature;
+	float* heat_buffer;
 
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* sorted_effective_mass;
-	
+	float* sorted_temperature;
+	float* sorted_heat_buffer;
 
 
 	// Deformable Solid
@@ -265,6 +271,8 @@ void PhaseDiffusion_Ren(SimData_SPH data, int num_p);
 void ComputeTension(SimData_SPH data, int num_particles);
 void UpdateSolidState(SimData_SPH data, int num_particles, int projection_type);
 void UpdateSolidTopology(SimData_SPH data, int num_particles);
+
+void HeatConduction(SimData_SPH data, int num_particles);
 
 void AdvectScriptObject(SimData_SPH data, int num_particles, cfloat3 vel);
 

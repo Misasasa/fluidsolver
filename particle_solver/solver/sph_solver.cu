@@ -508,6 +508,17 @@ void PhaseDiffusion(SimData_SPH data, int num_particles, float* dbg, int frameNo
 }
 
 
+void HeatConduction(SimData_SPH data, int num_particles)
+{
+	uint num_threads, num_blocks;
+	computeGridSize(num_particles, 256, num_blocks, num_threads);
+
+	HeatConductionKernel <<<num_blocks, num_threads>>>(data, num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel execution failed: rigid particle volume");
+}
+
+
 void RigidParticleVolume(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);

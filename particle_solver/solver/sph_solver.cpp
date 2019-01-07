@@ -28,7 +28,9 @@ void SPHSolver::Copy2Device() {
 	int num_particlesT = num_particles * hParam.maxtypenum;
 	cudaMemcpy(device_data.vFrac, host_vol_frac.data(), num_particlesT * sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(device_data.restDensity, host_rest_density.data(), num_particles * sizeof(float), cudaMemcpyHostToDevice);
-	
+	cudaMemcpy(device_data.temperature, host_temperature.data(), num_particles*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.heat_buffer, host_heat_buffer.data(), num_particles*sizeof(float), cudaMemcpyHostToDevice);
+
 	//Deformable Solid properties.
 	cudaMemcpy(device_data.local_id, host_localid.data(),num_particles*sizeof(int), cudaMemcpyHostToDevice);
 
@@ -115,7 +117,9 @@ void SPHSolver::Sort() {
 	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice );
 	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
-	
+	cudaMemcpy(device_data.temperature, device_data.sorted_temperature, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.heat_buffer, device_data.sorted_heat_buffer, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
+
 	//Deformable Solid
 	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, num_particles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, num_particles*sizeof(int), cudaMemcpyDeviceToDevice);
@@ -233,9 +237,13 @@ void SPHSolver::SolveMultiphaseSPH() {
 	//update deformation gradient F
 	UpdateSolidState(device_data, num_particles, VON_MISES);
 	
+	
+	PhaseDiffusion_Host();
+	
+	HeatConduction(device_data, num_particles);
+
 	UpdateSolidTopology(device_data, num_particles);
 
-	PhaseDiffusion_Host();
 
 
 	CopyFromDevice();
@@ -484,9 +492,8 @@ void SPHSolver::ParseParam(char* xmlpath) {
 	hParam.dissolution = reader.GetFloat("Dissolution");
 	printf("G,K,solidvisc: %f %f %f\n", hParam.solidG, hParam.solidK, hParam.solid_visc);
 	reader.GetFloatN(hParam.max_alpha, hParam.maxtypenum, "MaxVFraction");
-	/*hParam.max_alpha[0] = 1;
-	hParam.max_alpha[1] = 1;
-	hParam.max_alpha[2] = 1;*/
+	hParam.heat_flow_rate = reader.GetFloat("HeatFlowRate");
+	reader.GetFloatN(hParam.heat_capacity, hParam.maxtypenum, "HeatCapacity");
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -514,7 +521,7 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	
 	emit_particle_on = false;
 	advect_scriptobject_on = true;
-	hParam.enable_dissolution = true;
+	hParam.enable_dissolution = false;
 
 
 	ParseParam(xmlpath);
@@ -537,7 +544,10 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.klaplacian = 45.0f / (3.141592 * pow(sr, 6.0f));
 	hParam.kernel_cubic = 1/3.141593/pow(sr/2,3);
 	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
-	
+
+
+	hParam.melt_point = 40;
+	hParam.latent_heat = 1;
 }
 
 void SPHSolver::SetupHostBuffer() {
@@ -564,6 +574,9 @@ int SPHSolver::AddDefaultParticle() {
 	host_rest_density.push_back(0);
 	host_v_star.push_back(cfloat3(0,0,0));
 	host_localid.push_back(0);
+	host_temperature.push_back(25); //Maybe room temperature 25 degree.
+	host_heat_buffer.push_back(0);
+
 	for (int t=0; t<hParam.maxtypenum; t++)
 		host_vol_frac.push_back(0);
 
@@ -711,6 +724,9 @@ void SPHSolver::AddMultiphaseFluidVolumes() {
 					host_rest_density[pid] = density;
 					host_localid[pid] = localid_counter[type]++;
 					
+					if(type==TYPE_FLUID)
+						host_temperature[pid] = 90;
+
 					for (int t=0; t<hParam.maxtypenum; t++)
 						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
 
@@ -840,11 +856,14 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.phase_diffusion_lambda, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.vol_frac_change, num_pt*sizeof(float));
 	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.temperature, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.heat_buffer, maxpnum*sizeof(float));
 	
 	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
 	cudaMalloc(&device_data.sorted_effective_mass, maxpnum*sizeof(float));
-	
+	cudaMalloc(&device_data.sorted_temperature, maxpnum*sizeof(float));
+	cudaMalloc(&device_data.sorted_heat_buffer, maxpnum*sizeof(float));
 
 	// Deformable Solid
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));

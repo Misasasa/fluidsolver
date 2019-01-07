@@ -25,6 +25,8 @@ public:
 	vecf3   host_v;
 	vecf3	host_normal;
 	veci	host_type;
+	
+	//Multiphase DFSPH
 	veci	host_group;
 	vecf	host_mass;
 	vecf	host_inv_mass;
@@ -33,6 +35,9 @@ public:
 	vecf	host_rest_density;
 	vecf	host_vol_frac;
 	vecf3	host_v_star;
+	vecf	host_temperature;
+	vecf    host_heat_buffer; //for latent heat
+	//Deformable solid
 	vector<cmat3> host_cauchy_stress;
 	veci    host_localid;
 

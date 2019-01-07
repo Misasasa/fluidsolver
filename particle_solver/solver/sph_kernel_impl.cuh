@@ -182,6 +182,8 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sorted_effective_mass[index] = data.effective_mass[sortedIndex];
 		data.sorted_rho_stiff[index] = data.rho_stiff[sortedIndex];
 		data.sorted_div_stiff[index] = data.div_stiff[sortedIndex];
+		data.sorted_temperature[index] = data.temperature[sortedIndex];
+		data.sorted_heat_buffer[index] = data.heat_buffer[sortedIndex];
 		//Deformable Solid
 		data.sorted_cauchy_stress[index] = data.cauchy_stress[sortedIndex];
 		data.sorted_local_id[index] = data.local_id[sortedIndex];
@@ -1806,7 +1808,7 @@ __device__ void PredictPhaseDiffusionCell(
 				volume fraction. Evaluate nabla^2 alpha instead. */
 
 				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
-				vol_frac_change[k] -= factmp * turbulentj * vol0;
+				vol_frac_change[k] += factmp * turbulentj * vol0;
 			}
 		}
 		//else if( dParam.enable_dissolution )
@@ -1948,7 +1950,7 @@ __device__ void PhaseDiffusionCell(
 				volume fraction. Evaluate nabla^2 alpha instead. */
 
 				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
-				vol_frac_change[k] -= factmp * turbulentj * vol0 * lambda_ij;
+				vol_frac_change[k] += factmp * turbulentj * vol0 * lambda_ij;
 			}
 		}
 		else if( dParam.enable_dissolution && !(data.type[i]==TYPE_DEFORMABLE && data.type[j]==TYPE_DEFORMABLE) )
@@ -1976,7 +1978,7 @@ __device__ void PhaseDiffusionCell(
 			{
 				for (int k=0; k<num_type; k++) {
 					float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);	
-					vol_frac_change[k] -= factmp * dissolution_factor * vol0;
+					vol_frac_change[k] += factmp * dissolution_factor * vol0;
 				}
 			}
 		}
@@ -2053,6 +2055,113 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	}
 }
 
+
+
+
+__device__ void HeatConductionCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	float& dT) {
+
+	uint grid_hash = calcGridHash(cell_index);
+	if (grid_hash==GRID_UNDEF)
+		return;
+
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff)
+		return;
+	uint end_index = data.gridCellEnd[grid_hash];
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
+	
+	float heat_flow_rate = dParam.heat_flow_rate;
+
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (j == i || data.type[j]==TYPE_RIGID)
+			continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d2 = xij.square();
+		if (d2 >= sr2)
+			continue;
+
+		cfloat3 nabla_w = KernelGradient_Cubic(sr*0.5, xij);
+		float fac = dot(xij, nabla_w)/(d2+0.01*sr2*0.25)*2;
+		fac = fac * (data.temperature[i] - data.temperature[j]);
+		dT += fac * heat_flow_rate * vol0;
+	}
+}
+
+__global__ void HeatConductionKernel(
+	SimData_SPH data,
+	int num_particles
+)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]==TYPE_RIGID) return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+	
+	float dT = 0;
+	
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				HeatConductionCell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					dT);
+			}
+	
+	dT *= dParam.dt; // heat change
+
+	float heat_capacity = 0;
+	float vol = dParam.spacing * dParam.spacing * dParam.spacing;
+	for(int k=0;k<dParam.maxtypenum;k++)
+		heat_capacity += data.vFrac[index*dParam.maxtypenum+k] * dParam.heat_capacity[0];
+
+	// test temperature
+	float tmp = data.temperature[index] + dT / heat_capacity;
+	
+	if (data.type[index] == TYPE_DEFORMABLE && tmp > dParam.melt_point) {
+		
+		if (data.heat_buffer[index] < dParam.latent_heat - EPSILON) { //heat buffer not full
+			
+			float space = dParam.latent_heat - data.heat_buffer[index]; //empty space in heat buffer
+			if ( space >= dT ) { //fill buffer, no temperature change
+				data.heat_buffer[index] += dT;
+			}
+			else { //fill buffer, then update temperature
+				data.heat_buffer[index] = dParam.latent_heat;
+				dT -= space;
+				data.temperature[index] += dT / heat_capacity;
+			}
+		}
+		else { // heat buffer is full
+			data.temperature[index] = tmp;
+		}
+	}
+	else {
+		data.temperature[index] = tmp;
+	}
+
+	data.color[index].Set(data.temperature[index]/100, 0, 0, 1);
+	if (data.type[index]==TYPE_DEFORMABLE && data.temperature[index]>dParam.melt_point + EPSILON) {
+		data.type[index] = TYPE_FLUID;
+	}
+}
 
 
 /*
@@ -3158,7 +3267,8 @@ __global__ void Trim0(
 		if ( x0ij.Norm()/x0ij_len0 > 1.5 || 
 			!(found) ||
 			x0ji.Norm()/x0ji_len0 > 1.5 ||
-			data.vFrac[j*dParam.maxtypenum+0]<dParam.max_alpha[0] //solid component below saturation
+			//data.vFrac[j*dParam.maxtypenum+0]<dParam.max_alpha[0] //solid component below saturation
+			data.type[j] != TYPE_DEFORMABLE //solid marked as dissolved or molten
 			)
 		{
 			trim_tag[niter] = 1;
