@@ -140,6 +140,7 @@ struct SimData_SPH {
 	cmat3* rotation;
 	cmat3* Fp;			//plastic part of deformation gradient
 	int* trim_tag;
+	float* spatial_color; //for cutting
 
 	cmat3* sorted_cauchy_stress;
 	int*   sorted_local_id;

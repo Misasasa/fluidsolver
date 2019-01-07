@@ -592,6 +592,13 @@ void UpdateSolidTopology(
 
 	cudaMemset(data.trim_tag, 0, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
 
+	SpatialColorFieldKernel<<<num_blocks, num_threads>>>(
+		data,
+		num_particles);
+	cudaThreadSynchronize();
+	getLastCudaError("Kernel failed: spatial color field");
+
+
 	Trim0 <<<num_blocks, num_threads>>>(
 		data,
 		num_particles);

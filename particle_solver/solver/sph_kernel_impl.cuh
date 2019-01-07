@@ -3214,6 +3214,99 @@ __global__ void UpdateSolidStateF_Kernel(
 
 
 
+__device__ void SpatialColorFieldCell(
+	cint3 cell_index,
+	int i,
+	cfloat3 xi,
+	SimData_SPH& data,
+	int& bcount,
+	float& flag)
+{
+	uint grid_hash = calcGridHash(cell_index);
+	if (grid_hash==GRID_UNDEF)
+		return;
+
+	uint start_index = data.gridCellStart[grid_hash];
+	if (start_index == 0xffffffff)
+		return;
+	uint end_index = data.gridCellEnd[grid_hash];
+
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	float mindis = 99;
+	cfloat3 nearest_xij;
+
+	for (uint j = start_index; j < end_index; j++)
+	{
+		if (data.type[j]!=TYPE_RIGID || data.group[j]!=2) //2 is scripted object
+			continue;
+
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		float d = xij.Norm();
+		//if (d >= sr)
+		//	continue;
+		
+		if (d < mindis) {
+			mindis = d; 
+			nearest_xij = xij / d;
+			flag = dot(nearest_xij, data.normal[j]);
+		}
+		
+		bcount ++;
+	}
+}
+
+__global__ void SpatialColorFieldKernel(
+	SimData_SPH data,
+	int num_particles
+)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+	if (data.type[index]==TYPE_RIGID) return;
+
+	cfloat3 xi = data.pos[index];
+	cint3 cell_index = calcGridPos(xi);
+
+	int bcount=0;
+	float flag = 0;
+
+	for (int z=-1; z<=1; z++)
+		for (int y=-1; y<=1; y++)
+			for (int x=-1; x<=1; x++)
+			{
+				cint3 neighbor_cell_index = cell_index + cint3(x, y, z);
+				SpatialColorFieldCell(
+					neighbor_cell_index,
+					index,
+					xi,
+					data,
+					bcount,
+					flag);
+			}
+	/*if (bcount >= 3) {
+		data.spatial_color[index] = flag/abs(flag);
+		if (flag > EPSILON)
+			data.color[index].Set(0,0,1,1);
+		else if(flag < -EPSILON)
+			data.color[index].Set(0,1,0,1);
+	}
+	else {
+		data.spatial_color[index] = 0;
+	}*/
+
+	if(abs(flag)>0.1)
+		data.spatial_color[index] = flag;
+	else
+		data.spatial_color[index] = 0;
+
+	/*if (flag > EPSILON)
+		data.color[index].Set(0, 0, 1, 1);
+	else if (flag < -EPSILON)
+		data.color[index].Set(0, 1, 0, 1);*/
+}
+
 __global__ void Trim0(
 	SimData_SPH data,
 	int num_particles
@@ -3233,6 +3326,7 @@ __global__ void Trim0(
 
 	int* trim_tag = &data.trim_tag[localid_i*NUM_NEIGHBOR];
 	int num_neighbor = neighborlist[0];
+
 
 	for (uint niter = 1; niter <= num_neighbor; niter++)
 	{
@@ -3258,17 +3352,12 @@ __global__ void Trim0(
 		cfloat3 x0ij = neighbordx[niter];
 		float x0ij_len0 = len0_i[niter];
 		
-		/*if ( x0ij.Norm()>dParam.smoothradius || !(found) ||
-			 x0ji.Norm()>dParam.smoothradius)
-		{
-			trim_tag[niter] = 1;
-		}*/
 
 		if ( x0ij.Norm()/x0ij_len0 > 1.5 || 
 			!(found) ||
 			x0ji.Norm()/x0ji_len0 > 1.5 ||
-			//data.vFrac[j*dParam.maxtypenum+0]<dParam.max_alpha[0] //solid component below saturation
 			data.type[j] != TYPE_DEFORMABLE //solid marked as dissolved or molten
+			|| data.spatial_color[index]*data.spatial_color[j]<-EPSILON
 			)
 		{
 			trim_tag[niter] = 1;
@@ -3319,6 +3408,10 @@ __global__ void Trim1(
 	}
 	int tmp = num_neighbor;
 	num_neighbor = validcount-1;
+
+	if (num_neighbor < 4) {
+		data.type[index] = TYPE_FLUID;
+	}
 	//if(num_neighbor < tmp)
 	//	printf("%d %d -> %d\n", data.uniqueId[index], tmp, num_neighbor);
 }

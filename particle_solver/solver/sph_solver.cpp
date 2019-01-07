@@ -216,11 +216,11 @@ void SPHSolver::SolveMultiphaseSPH() {
 	
 	if (advect_scriptobject_on) {
 		
-		if(frame_count<524)
+		if(frame_count<1049)
 			AdvectScriptObject(device_data, num_particles, cfloat3(0,-0.5,0));
 		else
-			AdvectScriptObject(device_data, num_particles, cfloat3(0, 0.5, 0));
-		//RigidParticleVolume(device_data, num_particles);
+			AdvectScriptObject(device_data, num_particles, cfloat3(0.5, 0.5, 0));
+		RigidParticleVolume(device_data, num_particles);
 	}
 		
 
@@ -240,7 +240,7 @@ void SPHSolver::SolveMultiphaseSPH() {
 	
 	PhaseDiffusion_Host();
 	
-	HeatConduction(device_data, num_particles);
+	//HeatConduction(device_data, num_particles);
 
 	UpdateSolidTopology(device_data, num_particles);
 
@@ -754,7 +754,11 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0);
+		if(po->id[i]==2)
+			host_color[pid] = cfloat4(1,1,1,0.5);
+		else
+			host_color[pid] = cfloat4(1, 1, 1, 0);
+
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;
@@ -876,6 +880,7 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.rotation, hParam.num_deformable_p*sizeof(cmat3));
 	cudaMalloc(&device_data.trim_tag, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
 	cudaMalloc(&device_data.length0,  hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(float));
+	cudaMalloc(&device_data.spatial_color, maxpnum*sizeof(float));
 
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
