@@ -2045,6 +2045,12 @@ __global__ void UpdateVolumeFraction(SimData_SPH data, int num_particles) {
 	}
 	for (int k=0; k<dParam.maxtypenum; k++)
 		vol_frac[k] /= normalize;
+
+
+	if (data.type[index]==TYPE_DEFORMABLE && data.vFrac[index*dParam.maxtypenum+0] < dParam.max_alpha[0])
+	{
+		data.type[index] = TYPE_FLUID;
+	}
 }
 
 
@@ -2911,6 +2917,7 @@ void svd(cmat3& A, cmat3& U, cmat3& S, cmat3& V) {
 __device__ void PlasticityVonMises(
 	SimData_SPH& data,
 	int i,
+	float yieldi,
 	float pn,
 	cmat3& F,
 	cmat3& Fp
@@ -2921,7 +2928,7 @@ __device__ void PlasticityVonMises(
 	svd(F, U,S,V);
 	float flow = dParam.plastic_flow;
 
-	float gamma = flow * (pn - dParam.Yield) / pn;
+	float gamma = flow * (pn - yieldi) / pn;
 	if(gamma > 1)
 		gamma = 1;
 
@@ -3014,7 +3021,7 @@ __global__ void UpdateSolidStateF_Kernel(
 	
 	if (!(F.Norm()>1e-10)) {
 		int nn = data.neighborlist[ data.local_id[index]*NUM_NEIGHBOR ];
-		printf("oops %d\n", nn);
+		printf("oops %d %f\n", nn ,data.vFrac[index*dParam.maxtypenum+0]);
 		data.color[index].Set(0,1,0,1);
 	}
 	if (!(F.Det()>1e-10)) {
@@ -3057,20 +3064,34 @@ __global__ void UpdateSolidStateF_Kernel(
 	{
 		P.Set(0.0);
 	}
+	
 	/*
 	Do the plastic projection after computing stress P.
 	P remains unchanged. And the reference shape should be updated.
 	*/
 	
+	
+
 	cmat3 Fp;
 	switch(projection_type){
 	case VON_MISES:
-		//yield condition violated
-		float pn = P.Norm();
 		
-		if (pn>dParam.Yield) 
+		//compute yield condition
+		
+		float pn = P.Norm();
+
+		float yieldi = dParam.Yield;
+
+		/* The yield criterion should be continous across the deformable. Thus
+		if changing yield surface is desirable, the fluid phase should be diffusing
+		in the interior of the deformable object. This could be desirable in granular
+		materials, creating wet sand or something alike. */
+
+		/*float fac = -0.25 + data.vFrac[index*dParam.maxtypenum+0] * 1.25;
+		yieldi *= fac;*/
+		if (pn > yieldi)
 		{ 
-			PlasticityVonMises(data, index, pn, F, Fp);
+			PlasticityVonMises(data, index, yieldi, pn, F, Fp);
 			UpdateX0_Elastoplastic(data, index, Fp);
 		}
 
@@ -3136,7 +3157,9 @@ __global__ void Trim0(
 
 		if ( x0ij.Norm()/x0ij_len0 > 1.5 || 
 			!(found) ||
-			x0ji.Norm()/x0ji_len0 > 1.5)
+			x0ji.Norm()/x0ji_len0 > 1.5 ||
+			data.vFrac[j*dParam.maxtypenum+0]<dParam.max_alpha[0] //solid component below saturation
+			)
 		{
 			trim_tag[niter] = 1;
 		}

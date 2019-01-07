@@ -738,7 +738,7 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
 		host_x[pid] = po->pos[i];
-		host_color[pid] = cfloat4(1,1,1,0.5);
+		host_color[pid] = cfloat4(1,1,1,0);
 		host_type[pid] = TYPE_RIGID;
 		host_normal[pid] = po->normal[i];
 		host_mass[pid] = mp;

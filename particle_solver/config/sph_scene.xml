@@ -189,7 +189,7 @@
 	<Viscosity>	 0.05	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
-	<DensityArray> 1500,500,1500 </DensityArray>
+	<DensityArray> 1000,1000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
