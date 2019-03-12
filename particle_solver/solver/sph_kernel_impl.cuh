@@ -8,8 +8,6 @@
 #include "custom_math.cuh"
 
 typedef unsigned int uint;
-namespace sph
-{
 
 
 SimParam_SPH hParam;
@@ -1134,20 +1132,22 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 	float h = dParam.smoothradius*0.5;
 	float h2 = h*h;
 	
-	cfloat3 u1u_i(0,0,0), u2u_i(0,0,0), u3u_i(0,0,0);
+	/*cfloat3 u1u_i(0,0,0), u2u_i(0,0,0), u3u_i(0,0,0);
 	cfloat3 u1u_j, u2u_j, u3u_j;
 	for (int k=0; k<dParam.maxtypenum; k++)
 	{
 		u1u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].x * data.vFrac[i*dParam.maxtypenum+k];
 		u2u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].y * data.vFrac[i*dParam.maxtypenum+k];
 		u3u_i += data.drift_v[i*dParam.maxtypenum+k] * data.drift_v[i*dParam.maxtypenum+k].z * data.vFrac[i*dParam.maxtypenum+k];
-	}
+	}*/
 
 
 	//surface tension
 	float support_radius = h*2;
 	float fac = 32.0f / 3.141593 / pow(support_radius, 9);
 	float sf_kernel;
+
+	float sr6 = pow(dParam.smoothradius,6) / 64.0;
 
 	for (uint j = startIndex; j < endIndex; j++)
 	{
@@ -1165,62 +1165,65 @@ __device__ void NonPressureForceCell_Multiphase(cint3 gridPos,
 		if (data.type[i]==TYPE_FLUID && data.type[j]==TYPE_FLUID)
 		{
 			//phase momentum diffusion
-			cfloat3 nablaw = KernelGradient_Cubic(h, xij) * volj;
-			cfloat3 tmp(0,0,0);
-			u1u_j.Set(0,0,0);
-			u2u_j.Set(0,0,0);
-			u3u_j.Set(0,0,0);
-			cfloat3 um_jk;
-			for (int k=0; k<dParam.maxtypenum; k++) {
-				float alphajk = data.vFrac[j*dParam.maxtypenum+k];
-				um_jk = data.drift_v[j*dParam.maxtypenum+k];
+			//cfloat3 nablaw = KernelGradient_Cubic(h, xij) * volj;
+			//cfloat3 tmp(0,0,0);
+			//u1u_j.Set(0,0,0);
+			//u2u_j.Set(0,0,0);
+			//u3u_j.Set(0,0,0);
+			//cfloat3 um_jk;
+			//for (int k=0; k<dParam.maxtypenum; k++) {
+			//	float alphajk = data.vFrac[j*dParam.maxtypenum+k];
+			//	um_jk = data.drift_v[j*dParam.maxtypenum+k];
 
-				//if(dot(um_jk,um_jk)>100)
-				//	printf("super drift %f %f %f %d\n",  um_jk.x, um_jk.y, um_jk.z, data.uniqueId[j] );
+			//	//if(dot(um_jk,um_jk)>100)
+			//	//	printf("super drift %f %f %f %d\n",  um_jk.x, um_jk.y, um_jk.z, data.uniqueId[j] );
 
-				u1u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].x * alphajk;
-				u2u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].y * alphajk;
-				u3u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].z * alphajk;
-			}
-			u1u_j += u1u_i;
-			u2u_j += u2u_i;
-			u3u_j += u3u_i; 
+			//	u1u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].x * alphajk;
+			//	u2u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].y * alphajk;
+			//	u3u_j += data.drift_v[j*dParam.maxtypenum+k] * data.drift_v[j*dParam.maxtypenum+k].z * alphajk;
+			//}
+			//u1u_j += u1u_i;
+			//u2u_j += u2u_i;
+			//u3u_j += u3u_i; 
 
-			tmp.x += dot(nablaw, u1u_j);
-			tmp.y += dot(nablaw, u2u_j);
-			tmp.z += dot(nablaw, u3u_j);
-			force -= tmp;
+			//tmp.x += dot(nablaw, u1u_j);
+			//tmp.y += dot(nablaw, u2u_j);
+			//tmp.z += dot(nablaw, u3u_j);
+			//force -= tmp;
 			
-
-
 			//xsph artificial viscosity [Schechter 13]
+			if(data.group[i]==0 || data.group[j]==0)
+				force += vij * (dParam.viscosity * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt);
+			else
+				force += vij * (0.5 * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt);
 
-			force += vij * dParam.viscosity * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt;
+			
+		}
 
-			//surface tension
-			if (data.group[i]==data.group[j])
-			{
-				
-				if(d < h)
-					sf_kernel = 2*pow((support_radius-d)*d,3) - pow(support_radius,6)/64.0;
-				else if (d<support_radius)
-					sf_kernel = pow((support_radius-d)*d, 3);
-				else
-					sf_kernel = 0;
-				sf_kernel *= fac;
+		//surface tension
+		if (data.group[i]==data.group[j])
+		{
+			float c = support_radius - d;
 
-				cfloat3 sf_tension = xij * dParam.surface_tension * volj * sf_kernel / d *(-1);
+			if (d < h)
+				sf_kernel = 2* c*c*c*d*d2 - sr6;
+			else if (d<support_radius)
+				sf_kernel = c*c*c*d*d2;
+			else
+				sf_kernel = 0;
+			sf_kernel *= fac;
 
-				float kij = data.restDensity[i]/data.density[i] + data.restDensity[j]/data.density[j];
-				force += sf_tension * kij;
-			}
+			float tmp = dParam.surface_tension;
+			if (data.group[i]==4)
+				tmp *= 10;
+			cfloat3 sf_tension = xij * (tmp * volj * sf_kernel / d *(-1));
+			float kij = data.restDensity[i]/data.density[i] + data.restDensity[j]/data.density[j];
+			force += sf_tension;
 		}
 
 		if (data.type[i]==TYPE_DEFORMABLE && data.type[j]==TYPE_DEFORMABLE) {
 			
-			force += vij * dParam.solid_visc * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt;
-			/*if(data.uniqueId[i]==0)
-				printf("%f %f %f %f\n", dParam.viscosity, force.x, force.y, force.z);*/
+			force += vij * (dParam.solid_visc * volj *(-1) *Kernel_Cubic(h, xij) / dParam.dt);
 		}
 
 		if (data.type[j]==TYPE_RIGID && data.group[j]==0) {
@@ -1484,6 +1487,11 @@ __device__ void ApplyPressureCell_Multiphase(
 		
 		switch (data.type[j]) {
 		case TYPE_FLUID:
+			
+			force += nabla_w * (data.pstiff[i] * mass_i*mass_i / data.density[i]
+				+ data.pstiff[j] * data.mass[j] * data.mass[j] / data.density[j]);
+
+			break;
 		case TYPE_DEFORMABLE:
 			
 			force += nabla_w * (data.pstiff[i]*mass_i*mass_i/data.density[i]
@@ -1703,7 +1711,6 @@ __global__ void EffectiveMassKernel(SimData_SPH data, int num_particles) {
 	
 	data.restDensity[index] = rest_density;
 	data.color[index].Set(vol_frac[0], vol_frac[1], vol_frac[2], 1);
-	//data.color[index].Set(0, vol_frac[1], 0, 0.25+(vol_frac[1]/0.75));
 }
 
 
@@ -1723,6 +1730,7 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 
 	cfloat3 xi = data.pos[index];
 	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
+	cfloat3* flux_buffer= &data.flux_buffer[index*dParam.maxtypenum];
 	
 	cfloat3 drift_acceleration = data.v_star[index];
 	float dynamic_constant = dParam.drift_dynamic_diffusion; 
@@ -1743,6 +1751,7 @@ __global__ void DriftVelocityKernel(SimData_SPH data, int num_particles) {
 		float density_factor = (density_k - rest_density) / rest_density;
 		cfloat3 drift_vk = drift_acceleration * dynamic_constant * density_factor;
 		drift_v[k] = drift_vk;
+		flux_buffer[k] = drift_vk * vol_frac_k; //alpha_k drift_vk
 	}
 }
 
@@ -1767,16 +1776,13 @@ __device__ void PredictPhaseDiffusionCell(
 	float vol0 = dParam.spacing*dParam.spacing*dParam.spacing;
 	int num_type = dParam.maxtypenum;
 	
-	
-	
 	float turbulenti = data.vel[i].square() * dParam.drift_turbulent_diffusion 
 		+ dParam.drift_thermal_diffusion;
 
-	float dissolution_factor = dParam.dissolution;
-
+	
 	for (uint j = start_index; j < end_index; j++)
 	{
-		if (data.type[j]==TYPE_RIGID || j == i )
+		if (data.type[j]!=TYPE_FLUID || j == i )
 			continue;
 
 		cfloat3 xj = data.pos[j];
@@ -1789,43 +1795,27 @@ __device__ void PredictPhaseDiffusionCell(
 		float vol_j = data.mass[j] / data.density[j];
 		float fac = dot(xij, nabla_w)/(d2+0.01*sr2*0.25)*2;
 		
-		/* Inertial separating flux only happens between fluid particles.*/
-		if (data.type[i]==TYPE_FLUID && data.type[j]==TYPE_FLUID) {
+
+		cfloat3 flux_k(0,0,0);
+
+		/* The turbulent factor is averaged between particle i and j. */
+		float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
+			+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
+
+		for (int k=0; k<num_type; k++) {
 			
-			cfloat3 flux_k;
-
-			/* The turbulent factor is averaged between particle i and j. */
-			float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
-				+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
-
-			for (int k=0; k<num_type; k++) {
-				flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
-					+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-				vol_frac_change[k] += dot(flux_k, nabla_w) * (-1);
+			//flux_k = data.drift_v[i*num_type+k] * (vol_i * data.vFrac[i*num_type+k])
+			//	+ data.drift_v[j*num_type+k] * (vol_j * data.vFrac[j*num_type+k]) ;
+			flux_k = data.flux_buffer[i*num_type+k] + data.flux_buffer[j*num_type+k];
+			vol_frac_change[k] -= dot(flux_k, nabla_w) * vol0;
 				
-				/* turbulent diffusion
-				Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
-				volume fraction. Evaluate nabla^2 alpha instead. */
+			/* turbulent diffusion
+			Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
+			volume fraction. Evaluate nabla^2 alpha instead. */
 
-				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
-				vol_frac_change[k] += factmp * turbulentj * vol0;
-			}
+			float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
+			vol_frac_change[k] += factmp * turbulentj * vol0;
 		}
-		//else if( dParam.enable_dissolution )
-		///* i: fluid or deformable, j: fluid or deformable,
-		//this branch means (i,j) = (fluid, deformable) or (deformable, fluid)*/
-		//{
-		//	float vik, vjk;
-		//	for (int k=0; k<num_type; k++) {
-
-		//		vik = fmin(data.vFrac[i*num_type+k], dParam.max_alpha[k]);
-		//		vjk = fmin(data.vFrac[j*num_type+k], dParam.max_alpha[k]);
-
-		//		//float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
-		//		float factmp = fac * (vik - vjk);
-		//		vol_frac_change[k] -= factmp * dissolution_factor * vol0;
-		//	}
-		//}
 		
 	}
 
@@ -1834,16 +1824,20 @@ __device__ void PredictPhaseDiffusionCell(
 __global__ void PredictPhaseDiffusionKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
-	if (data.type[index]==TYPE_RIGID) return;
+	if (data.type[index]!=TYPE_FLUID){
+		return;
+	}
 
 	cfloat3 xi = data.pos[index];
 	cint3 cell_index = calcGridPos(xi);
+	
 	cfloat3* drift_v = &data.drift_v[index*dParam.maxtypenum];
 	float vol_frac_change[10];
 	float vol_i = data.mass[index] / data.density[index];
 
 	for(int k=0; k<dParam.maxtypenum; k++) 
 		vol_frac_change[k]=0; //initialization
+
 
 	for (int z=-1; z<=1; z++) 
 	for (int y=-1; y<=1; y++)	
@@ -1939,15 +1933,14 @@ __device__ void PhaseDiffusionCell(
 			/* The turbulent factor is averaged between particle i and j. */
 			float turbulentj = (data.vel[j].square() * dParam.drift_turbulent_diffusion
 				+ dParam.drift_thermal_diffusion + turbulenti)*0.5;
-
+			 
 			for (int k=0; k<num_type; k++) {
-				flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
+				/*flux_k = data.drift_v[i*num_type+k] * vol_i * data.vFrac[i*num_type+k]
 					+ data.drift_v[j*num_type+k] * vol_j * data.vFrac[j*num_type+k];
-				vol_frac_change[k] += dot(flux_k, nabla_w) * (-1) * lambda_ij;
-
-				/* turbulent diffusion
-				Evaluating nabla.Dot(nabla alpha) doesnot ensure positive
-				volume fraction. Evaluate nabla^2 alpha instead. */
+				vol_frac_change[k] += dot(flux_k, nabla_w) * (-1) * lambda_ij;*/
+				
+				flux_k = data.flux_buffer[i*num_type+k] + data.flux_buffer[j*num_type+k];
+				vol_frac_change[k] -= dot(flux_k, nabla_w) * vol0 * lambda_ij;
 
 				float factmp = fac * (data.vFrac[i*num_type+k] - data.vFrac[j*num_type+k]);
 				vol_frac_change[k] += factmp * turbulentj * vol0 * lambda_ij;
@@ -2157,7 +2150,7 @@ __global__ void HeatConductionKernel(
 		data.temperature[index] = tmp;
 	}
 
-	data.color[index].Set(data.temperature[index]/100, 0, 0, 1);
+	//data.color[index].Set(data.temperature[index]/100, 0, 0, 1);
 	if (data.type[index]==TYPE_DEFORMABLE && data.temperature[index]>dParam.melt_point + EPSILON) {
 		data.type[index] = TYPE_FLUID;
 	}
@@ -2812,7 +2805,6 @@ __device__ void ComputeTensionWithP_Cell(
 
 __device__ void ComputeTensionWithP_Cell_Plastic(
 	int i,
-	cfloat3 xi,
 	SimData_SPH& data,
 	cfloat3& tension
 ) {
@@ -2825,7 +2817,6 @@ __device__ void ComputeTensionWithP_Cell_Plastic(
 	cfloat3 fi, fj;
 	cmat3& P_i = data.cauchy_stress[i];
 	int localid_i = data.local_id[i];
-	cfloat3 x0i = data.x0[localid_i];
 	cmat3 RL_i, RL_j;
 	mat3prod(data.rotation[localid_i], data.correct_kernel[localid_i], RL_i);
 
@@ -2842,11 +2833,10 @@ __device__ void ComputeTensionWithP_Cell_Plastic(
 
 		int j = data.indexTable[neighborlist[niter]];
 
-		//cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
+		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR + niter];
 		cmat3& sigma_j = data.cauchy_stress[j];
 
 		// x0ij from particle i
-		cfloat3 x0ij = neighbordx[niter];
 		if (! (x0ij.Norm()<dParam.smoothradius))
 			continue;
 		nablawij = KernelGradient_Cubic(h, x0ij);
@@ -2881,21 +2871,19 @@ __global__ void ComputeTensionWithP_Kernel(SimData_SPH data, int num_particles)
 	if (data.type[index]!=TYPE_DEFORMABLE)
 		return;
 
-	cfloat3 xi = data.pos[index];
+	cfloat3 x0i = data.x0[data.local_id[index]];
 
 	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
 	cfloat3  tension(0, 0, 0);
 	ComputeTensionWithP_Cell_Plastic(
 		index,
-		xi,
 		data,
 		tension);
 
-	//if(!(tension.Norm()<1e10))
-	//	tension.Set(0,0,0);
-
 	tension *= vol*vol / data.mass[index];
-	data.v_star[index] += tension * dParam.dt;
+	data.vel_right[index] = data.v_star[index] + tension * dParam.dt;
+
+	data.v_star[index] = data.vel_right[index];
 }
 
 
@@ -2910,7 +2898,6 @@ __device__ void DeformationGradient_Cell(
 	float h = dParam.smoothradius * 0.5;
 	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
 	int localid_i = data.local_id[i];
-	cfloat3 x0i = data.x0[localid_i];
 	cmat3& L = data.correct_kernel[localid_i];
 	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
 	int num_neighbor = neighborlist[0];
@@ -2927,13 +2914,15 @@ __device__ void DeformationGradient_Cell(
 		cfloat3 xji = data.pos[j] - xi;
 		xji *= vol;
 
-		//cfloat3 x0ij = x0i - data.x0[ data.local_id[j]];
-		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR+niter];
+		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR + niter];
+
 		cfloat3 nablaw = KernelGradient_Cubic(h, x0ij);
+
 		mvprod(L, nablaw, nablaw);
 		
 		F.Add(TensorProduct(xji, nablaw));
 	}
+
 }
 
 __device__ void ExtractRotation(
@@ -2961,6 +2950,7 @@ __device__ void ExtractRotation(
 __device__ void RotatedDeformationGradient_Cell(
 	int i,
 	cfloat3 xi,
+	cfloat3 x0i,
 	SimData_SPH& data,
 	cmat3& R,
 	cmat3& rotated_F
@@ -2969,7 +2959,6 @@ __device__ void RotatedDeformationGradient_Cell(
 	float h = dParam.smoothradius * 0.5;
 	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
 	int localid_i = data.local_id[i];
-	cfloat3 x0i = data.x0[localid_i];
 	cmat3& L = data.correct_kernel[localid_i];
 	cmat3 RL;
 	mat3prod(R,L,RL);
@@ -2986,18 +2975,20 @@ __device__ void RotatedDeformationGradient_Cell(
 		int j = data.indexTable[neighborlist[niter]];
 
 		cfloat3 xji = data.pos[j] - xi;
-		
 
-		//cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
-		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR+niter];
+		cfloat3 x0ij = x0i - data.x0[data.local_id[j]];
+
 		cfloat3 Rx0ji = x0ij*(-1);
 		mvprod(R, Rx0ji, Rx0ji);
+
 		xji = xji - Rx0ji;
 		xji *= vol;
 
-		cfloat3 nablaw = KernelGradient_Cubic(h, x0ij);
+		cfloat3 x0ij_kernel = data.neighbordx[localid_i*NUM_NEIGHBOR + niter];
+		cfloat3 nablaw = KernelGradient_Cubic(h, x0ij_kernel);
+
 		mvprod(RL, nablaw, nablaw);
-		
+
 		rotated_F.Add(TensorProduct(xji, nablaw));
 	}
 }
@@ -3040,6 +3031,13 @@ __device__ void PlasticityVonMises(
 	float gamma = flow * (pn - yieldi) / pn;
 	if(gamma > 1)
 		gamma = 1;
+
+	//clamp negative singular value
+	//There's some bug inside the svd code
+
+	if (S[0][0]<0) S[0][0]=1;
+	if (S[1][1]<0) S[1][1]=1;
+	if (S[2][2]<0) S[2][2]=1;
 
 	cmat3 Fp_diag; //initialized as full-zero
 	Fp_diag[0][0] = pow( S[0][0], gamma );
@@ -3122,6 +3120,7 @@ __global__ void UpdateSolidStateF_Kernel(
 		return;
 
 	cfloat3 xi = data.pos[index];
+	cfloat3 x0i = data.x0[data.local_id[index]];
 	cint3 cell_index = calcGridPos(xi);
 	cmat3 F;
 	cmat3& R = data.rotation[data.local_id[index]];
@@ -3130,7 +3129,7 @@ __global__ void UpdateSolidStateF_Kernel(
 	
 	if (!(F.Norm()>1e-10)) {
 		int nn = data.neighborlist[ data.local_id[index]*NUM_NEIGHBOR ];
-		printf("oops %d %f\n", nn ,data.vFrac[index*dParam.maxtypenum+0]);
+		printf("oops1 %d %f\n", nn ,data.vFrac[index*dParam.maxtypenum+0]);
 		data.color[index].Set(0,1,0,1);
 	}
 	if (!(F.Det()>1e-10)) {
@@ -3143,7 +3142,7 @@ __global__ void UpdateSolidStateF_Kernel(
 	ExtractRotation(F, R, 10);
 
 	F.Set(0.0);
-	RotatedDeformationGradient_Cell(index, xi, data, R, F);
+	RotatedDeformationGradient_Cell(index, xi, x0i, data, R, F);
 	F[0][0]+=1;
 	F[1][1]+=1;
 	F[2][2]+=1;
@@ -3173,46 +3172,7 @@ __global__ void UpdateSolidStateF_Kernel(
 	{
 		P.Set(0.0);
 	}
-	
-	/*
-	Do the plastic projection after computing stress P.
-	P remains unchanged. And the reference shape should be updated.
-	*/
-	
-	
-
-	cmat3 Fp;
-	switch(projection_type){
-	case VON_MISES:
-		
-		//compute yield condition
-		
-		float pn = P.Norm();
-
-		float yieldi = dParam.Yield;
-
-		/* The yield criterion should be continous across the deformable. Thus
-		if changing yield surface is desirable, the fluid phase should be diffusing
-		in the interior of the deformable object. This could be desirable in granular
-		materials, creating wet sand or something alike. */
-
-		/*float fac = -0.25 + data.vFrac[index*dParam.maxtypenum+0] * 1.25;
-		yieldi *= fac;*/
-		if (pn > yieldi)
-		{ 
-			PlasticityVonMises(data, index, yieldi, pn, F, Fp);
-			UpdateX0_Elastoplastic(data, index, Fp);
-		}
-
-		break;
-
-	case DRUCKER_PRAGER:
-		break;
-	}
-	
 }
-
-
 
 __device__ void SpatialColorFieldCell(
 	cint3 cell_index,
@@ -3354,8 +3314,11 @@ __global__ void Trim0(
 		
 
 		if ( x0ij.Norm()/x0ij_len0 > 1.5 || 
+			x0ij.Norm() > dParam.smoothradius-EPSILON ||
 			!(found) ||
 			x0ji.Norm()/x0ji_len0 > 1.5 ||
+			x0ji.Norm() > dParam.smoothradius-EPSILON ||
+
 			data.type[j] != TYPE_DEFORMABLE //solid marked as dissolved or molten
 			|| data.spatial_color[index]*data.spatial_color[j]<-EPSILON
 			)
@@ -3409,7 +3372,7 @@ __global__ void Trim1(
 	int tmp = num_neighbor;
 	num_neighbor = validcount-1;
 
-	if (num_neighbor < 4) {
+	if (num_neighbor < 1) {
 		data.type[index] = TYPE_FLUID;
 	}
 	//if(num_neighbor < tmp)
@@ -3466,6 +3429,8 @@ __device__ void FindNeighborsCell(
 	}
 }
 
+extern HDFUNC cmat3 MooreInv(cmat3 A);
+
 /*
 Build the neighbor list.
 */
@@ -3498,14 +3463,11 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 					kernel_tmp);
 			}
 	data.neighborlist[localid_i*NUM_NEIGHBOR] = neighborcount - 1;
-	
-	//printf("%d %d\n", index, neighborcount - 1 );
-	/*printf("%f %f %f\n%f %f %f\n%f %f %f\n", 
-		kernel_tmp.data[0], kernel_tmp.data[1], kernel_tmp.data[2],
-		kernel_tmp.data[3], kernel_tmp.data[4], kernel_tmp.data[5], 
-		kernel_tmp.data[6], kernel_tmp.data[7], kernel_tmp.data[8]);*/
 
-	//data.correct_kernel[localid_i] = kernel_tmp.Inv();
+	if(kernel_tmp.Det() > EPSILON)
+		data.correct_kernel[localid_i] = kernel_tmp.Inv();
+	else
+		data.correct_kernel[localid_i] = MooreInv(kernel_tmp);
 	
 	cmat3& ck = data.correct_kernel[localid_i];
 	ck.Set(0.0);
@@ -3535,6 +3497,3 @@ __global__ void AdvectScriptObjectKernel(SimData_SPH data,
 	data.pos[index] += data.vel[index] * dParam.dt;
 
 }
-
-
-};

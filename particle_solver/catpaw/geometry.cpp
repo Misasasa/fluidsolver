@@ -1,6 +1,5 @@
 #include "geometry.h"
 
-
 void  RotateX(cfloat3& a, float b) {
 	float tmp[9]={1,0,0,    0,cos(b),-sin(b),    0,sin(b),cos(b)};
 	cmat3 tmpmat;
@@ -219,3 +218,4 @@ void cCamera::lookat(cfloat3& _pos, cfloat3& _target) {
 	viewmat = CameraRotateMat();
 	CameraTranslateMat(viewmat, pos);
 }
+

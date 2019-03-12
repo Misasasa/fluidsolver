@@ -1,6 +1,5 @@
 
 #include "SolverGUI.h"
-#include "solver/pbfsolver.h"
 #include "SOIL.h"
 
 #ifdef BUILD_CUDA
@@ -285,18 +284,18 @@ void SolverGUI::keyDown(unsigned char key){
 void SolverGUI::PrintCameraParam() {
 
 	//convert from GL to 3D
-	cfloat3 origin(camera.pos.x, -camera.pos.z, camera.pos.y);
-	cfloat3 target(camera.target.x,-camera.target.z,camera.target.y);
-	cfloat3 up(camera.up.x,-camera.up.z,camera.up.y);
+	cfloat3 origin(camera.pos.x, camera.pos.y, camera.pos.z);
+	cfloat3 target(camera.target.x, camera.target.y,camera.target.z);
+	cfloat3 up(camera.up.x,camera.up.y,camera.up.z);
 
 	FILE* foutput = fopen("camera param.xml","w+");
 	fprintf(foutput,"<float name=\"fov\" value=\"%f\"/>\n",camera.fovy);
 	fprintf(foutput, "<float name=\"nearClip\" value=\"%f\"/>\n", camera.nearclip);
 	fprintf(foutput, "<float name=\"farClip\" value=\"%f\"/>\n", camera.farclip);
 
-	/*cfloat3 dir = target-origin;
+	cfloat3 dir = target-origin;
 	origin *= 200;
-	target = origin + dir;*/
+	target = origin + dir;
 
 	fprintf(foutput,"<transform name=\"toWorld\">\n");
 	fprintf(foutput,"<lookat ");
@@ -661,8 +660,8 @@ void SolverGUI::Initialize(int argc, char** argv) {
 
 void SolverGUI::GetBoundingBox() {
 	//hard code
-	cfloat3 min = solver->domainMin;
-	cfloat3 max = solver->domainMax;
+	cfloat3 min = solver->GetDomainMin();
+	cfloat3 max = solver->GetDomainMax();
 	boundingBox.vertices.resize(8);
 
 	boundingBox.vertices[0].pos.Set(min.x,max.y,min.z);
@@ -732,7 +731,7 @@ void SolverGUI::render() {
 		
 
 		float interval = 1.0/120.0;
-		frametimer += solver->dt;
+		frametimer += solver->GetTimeStep();
 
 		if (frametimer > interval) {
 			if(bTakeSnapshot) takeSnapshot();
@@ -750,7 +749,7 @@ void SolverGUI::render() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	switch (rendermode) {
 	case PARTICLE_RENDERER:
-		particleRO->Draw(hPos->data(), hColor->data(), camera, solver->num_particles);
+		particleRO->Draw(hPos->data(), hColor->data(), camera, solver->GetNumParticles());
 		break;
 	/*
 	case TRIANGLE_RENDERER:

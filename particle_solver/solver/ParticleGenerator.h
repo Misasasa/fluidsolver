@@ -157,3 +157,36 @@ public:
 		return so;
 	}
 };
+
+class ObjParser {
+private:
+
+public:
+	ParticleObject* loadPoints(const char* filepath)
+	{
+		ParticleObject* po = new ParticleObject();
+		printf("Loading geometry file %s\n", filepath);
+
+		FILE* fp = fopen(filepath, "r");
+		if (fp==NULL) {
+			printf("error opening %s\n", filepath);
+			return NULL;
+		}
+
+		char buf[2048];
+		
+		for (int i=0; i<6; i++)
+		{
+			fgets(buf, sizeof(buf), fp);
+			//printf("%s\n", buf);
+		}
+		float x,y,z;
+		while (fgets(buf, sizeof(buf), fp) != NULL)
+		{
+			sscanf(buf, "v %f %f %f\n", &x, &y, &z);
+			po->pos.push_back(cfloat3(x,y,z));
+		}
+		fclose(fp);
+		return po;
+	}
+};

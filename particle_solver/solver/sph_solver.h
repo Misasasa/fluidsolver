@@ -3,44 +3,24 @@
 #include "sph_solver.cuh"
 #include "catpaw/objbuilder.h"
 #include "catpaw/cpXMLHelper.h"
-#include "Solver.h"
+
+#include "ParticleSolver.h"
 #include "particle_common.h"
 #include "ParticleGenerator.h"
-
-namespace sph{
-
 
 #define SPH 0
 #define DFSPH 1
 #define MSPH 2
 #define MSPH_REN 3
 
-class SPHSolver : public Solver {
+class SPHSolver : public ParticleSolver {
 
-public:
-
-	//nooverride
-	//vecf3	host_x;
-	//vecf4	host_color;
-	vecf3   host_v;
-	vecf3	host_normal;
-	veci	host_type;
+protected:
+	veci	unique_id;
+	veci	id_table;
+	vecf3	normal;
+	veci	type;
 	
-	//Multiphase DFSPH
-	veci	host_group;
-	vecf	host_mass;
-	vecf	host_inv_mass;
-	veci	host_unique_id;
-	veci	host_id_table;
-	vecf	host_rest_density;
-	vecf	host_vol_frac;
-	vecf3	host_v_star;
-	vecf	host_temperature;
-	vecf    host_heat_buffer; //for latent heat
-	//Deformable solid
-	vector<cmat3> host_cauchy_stress;
-	veci    host_localid;
-
 	SimData_SPH device_data;
 	
 	vector<fluidvol> fluid_volumes;
@@ -64,12 +44,7 @@ public:
 	bool emit_particle_on;
 	bool advect_scriptobject_on;
 
-
-
-
-
-
-
+public:
 
 	void Step();
 	void HandleKeyEvent(char key);
@@ -77,36 +52,24 @@ public:
 
 	void SetupHostBuffer();
 	void SetupDeviceBuffer();
-	void Copy2Device();
-	void Copy2Device(int begin, int end);
-	void CopyFromDevice();
-	void CopyFromDeviceFull();
+	void CopyParticleDataToDevice();
+	void CopyParticleDataToDevice(int begin, int end);
+	void CopyPosColorFromDevice();
+	void CopySimulationDataFromDevice();
 
-	void Sort();
+	void SortParticles();
 	void SolveSPH();
 	void SolveDFSPH();
-	void SolveMultiphaseSPH(); //with DFSPH
-	void SolveMultiphaseSPHRen(); //with Ren et al. 13
-
-	void PhaseDiffusion_Host();
-
+	
 	void Setup();
 	int  AddDefaultParticle();
-	void Addfluidvolumes();
-	void EnableFluidSource();
 
 	// DFSPH
 	void SetupDFSPH();
 
-	// Multiphase Fluid
-	void SetupMultiphaseSPH();
-	void AddMultiphaseFluidVolumes();
-	void AddTestVolume();
-	void SetupMultiphaseSPHRen();
-
 	/* Rigid bodies, deformables. */
 	void LoadPO(ParticleObject* po);
-	
+	void LoadPO(ParticleObject* po, int type);
 
 	//Setup Scenes
 	void ParseParam(char* xmlpath);
@@ -117,6 +80,4 @@ public:
 	void DumpRenderData();
 
 	void SetupFluidScene();
-};
-
 };

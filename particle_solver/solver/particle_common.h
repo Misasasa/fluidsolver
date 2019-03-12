@@ -27,6 +27,7 @@ struct fluidvol {
 	float volfrac[10];
 	int group;
 	int type;
+	bool empty;
 };
 
 struct FluidSrc {

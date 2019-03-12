@@ -6,7 +6,6 @@
 #include "particle_common.h"
 
 
-namespace sph{
 
 struct SimParam_SPH {
 	
@@ -121,6 +120,9 @@ struct SimData_SPH {
 	float* temperature;
 	float* heat_buffer;
 
+	// try to speed up
+	cfloat3* flux_buffer;
+
 	float* sortedVFrac;
 	float* sortedRestDensity;
 	float* sorted_effective_mass;
@@ -131,6 +133,7 @@ struct SimData_SPH {
 	// Deformable Solid
 	cmat3* strain_rate;
 	cmat3* cauchy_stress;
+	cfloat3* vel_right;
 	int* neighborlist;   //store uniqueid
 	cfloat3* neighbordx; //store x0_ij
 	float* length0;
@@ -141,6 +144,11 @@ struct SimData_SPH {
 	cmat3* Fp;			//plastic part of deformation gradient
 	int* trim_tag;
 	float* spatial_color; //for cutting
+
+	//used for iteration
+	cfloat3* r_this;
+	cfloat3* r_last;
+	cfloat3* p_this;
 
 	cmat3* sorted_cauchy_stress;
 	int*   sorted_local_id;
@@ -276,7 +284,4 @@ void UpdateSolidTopology(SimData_SPH data, int num_particles);
 void HeatConduction(SimData_SPH data, int num_particles);
 
 void AdvectScriptObject(SimData_SPH data, int num_particles, cfloat3 vel);
-
-};
-
 

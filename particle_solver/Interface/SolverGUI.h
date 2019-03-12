@@ -8,7 +8,7 @@
 
 #include "catpaw/cpToolBox.h"
 #include "RenderObject.h"
-#include "Solver.h"
+#include "solver/ParticleSolver.h"
 
 using namespace std;
 
@@ -51,7 +51,7 @@ private:
 	cCamera camera;
 
 	//buffer bindings
-	Solver* solver;
+	ParticleSolver* solver;
 	vecf3* hPos;
 	vecf4* hColor;
 	vertex*  vbuffer;	   //vertex=cfloat3+cfloat4
@@ -80,10 +80,10 @@ public:
 	}
 
 	//--- bind buffer ---
-	void bindSolver(Solver* solver_) {
+	void bindSolver(ParticleSolver* solver_) {
 		solver = solver_;
-		hPos = & solver->host_x;
-		hColor = & solver->host_color;
+		hPos = solver->GetPos();
+		hColor = solver->GetColor();
 		GetBoundingBox();
 	}
 

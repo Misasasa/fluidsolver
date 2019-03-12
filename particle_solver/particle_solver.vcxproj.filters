@@ -10,6 +10,9 @@
     <Filter Include="solver">
       <UniqueIdentifier>{ca845667-7e64-4dea-aa96-9b5eb149f0c8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="solver\sph">
+      <UniqueIdentifier>{cef0f697-c201-433a-a328-c592a3804d2a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="catpaw\geometry.cpp">
@@ -25,28 +28,22 @@
       <Filter>interface</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="catpaw\BI2Reader.cpp">
-      <Filter>catpaw</Filter>
-    </ClCompile>
     <ClCompile Include="catpaw\Functions.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
     <ClCompile Include="catpaw\objbuilder.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
-    <ClCompile Include="solver\pbfsolver.cpp">
-      <Filter>solver</Filter>
-    </ClCompile>
     <ClCompile Include="catpaw\cpXMLHelper.cpp">
       <Filter>catpaw</Filter>
     </ClCompile>
-    <ClCompile Include="grid_solver.cpp">
+    <ClCompile Include="solver\particle_common.cpp">
       <Filter>solver</Filter>
     </ClCompile>
     <ClCompile Include="solver\sph_solver.cpp">
-      <Filter>solver</Filter>
+      <Filter>solver\sph</Filter>
     </ClCompile>
-    <ClCompile Include="solver\particle_common.cpp">
+    <ClCompile Include="solver\MultiphaseSPHSolver.cpp">
       <Filter>solver</Filter>
     </ClCompile>
   </ItemGroup>
@@ -72,15 +69,6 @@
     <ClInclude Include="catpaw\objbuilder.h">
       <Filter>catpaw</Filter>
     </ClInclude>
-    <ClInclude Include="solver\pbf_gpu.cuh">
-      <Filter>solver</Filter>
-    </ClInclude>
-    <ClInclude Include="solver\pbf_kernel_impl.cuh">
-      <Filter>solver</Filter>
-    </ClInclude>
-    <ClInclude Include="solver\pbfsolver.h">
-      <Filter>solver</Filter>
-    </ClInclude>
     <ClInclude Include="catpaw\cpTimer.h">
       <Filter>catpaw</Filter>
     </ClInclude>
@@ -93,19 +81,7 @@
     <ClInclude Include="catpaw\vec_define.h">
       <Filter>catpaw</Filter>
     </ClInclude>
-    <ClInclude Include="grid_solver.h">
-      <Filter>solver</Filter>
-    </ClInclude>
-    <ClInclude Include="solver\sph_solver.h">
-      <Filter>solver</Filter>
-    </ClInclude>
-    <ClInclude Include="solver\sph_solver.cuh">
-      <Filter>solver</Filter>
-    </ClInclude>
     <ClInclude Include="solver\particle_common.h">
-      <Filter>solver</Filter>
-    </ClInclude>
-    <ClInclude Include="solver\sph_kernel_impl.cuh">
       <Filter>solver</Filter>
     </ClInclude>
     <ClInclude Include="solver\cuda_common.cuh">
@@ -117,13 +93,28 @@
     <ClInclude Include="Solver.h">
       <Filter>solver</Filter>
     </ClInclude>
+    <ClInclude Include="solver\sph_kernel_impl.cuh">
+      <Filter>solver\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\sph_solver.cuh">
+      <Filter>solver\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\sph_solver.h">
+      <Filter>solver\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\ParticleSolver.h">
+      <Filter>solver</Filter>
+    </ClInclude>
+    <ClInclude Include="solver\MultiphaseSPHSolver.h">
+      <Filter>solver\sph</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="solver\pbf_gpu.cu">
-      <Filter>solver</Filter>
-    </CudaCompile>
     <CudaCompile Include="solver\sph_solver.cu">
-      <Filter>solver</Filter>
+      <Filter>solver\sph</Filter>
+    </CudaCompile>
+    <CudaCompile Include="solver\SphSolver.cu">
+      <Filter>solver\sph</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

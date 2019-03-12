@@ -1,50 +1,15 @@
 
 
 #include "Interface/SolverGUI.h"
-#include "solver/pbfsolver.h"
-#include "grid_solver.h"
-#include "solver/sph_solver.h"
+#include "solver/MultiphaseSPHSolver.h"
+#include "catpaw\geometry.h"
 
 using namespace catpaw;
 
 SolverGUI solverGUI;
-PBFSolver* solver;
-
-
-void SetupPBFSolver() {
-	solver = new PBFSolver();
-	solver->setupBasicScene();
-
-	solverGUI.LoadIndexedVBO(solver->indexedVBO);
-	solverGUI.setRenderMode(TRIANGLE_PARTICLE_RENDERER);
-	solverGUI.setParticlesz(1);
-}
-
-//unit test
-int main_(int argc, char **argv) {
-
-	solverGUI.Initialize(argc, argv);
-	
-	SetupPBFSolver();
-
-	solverGUI.Run();
-
-	return 0;
-}
-
-void testGrid() {
-	
-	GridSolver gs;
-	gs.setup();
-
-	solverGUI.bindSolver(&gs);
-	solverGUI.setParticlesz(0.005);
-	
-	solverGUI.Run();
-}
 
 void testSPH() {
-	sph::SPHSolver ss;
+	MultiphaseSPHSolver ss;
 	ss.Setup();
 
 	solverGUI.bindSolver(&ss);
@@ -53,9 +18,15 @@ void testSPH() {
 	solverGUI.Run();
 }
 
+extern int singularValueDecomposition(cmat3& A, cmat3& U, cfloat3& sigma, cmat3& V, float tol = 128 * 1e-10);
+
+extern void singularValueDecomposition2(cmat2& A, GivensRotation& U, cfloat2& Sigma, GivensRotation& V, const float tol = 64 * 1e-10);
+
 int main(int argc, char **argv) {
+
 	solverGUI.Initialize(argc, argv);
 
-
 	testSPH();
+
+	return 0;
 }

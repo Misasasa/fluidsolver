@@ -5,7 +5,7 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 6 </SceneId>
+	<SceneId> 5 </SceneId>
 
 </Fluid>
 
@@ -193,19 +193,20 @@
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
 	<Vol>
-		<VolMin>	-0.15,  0.01,  -0.06	</VolMin>
-		<VolMax>	-0.05,  0.10,  0.06	</VolMax>
+		<VolMin>	0.05,  0.04,  -0.02	</VolMin>
+		<VolMax>	0.10,  0.07,  0.02	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
-		<Type>deformable</Type>
+		<Type>fluid</Type>
 	</Vol>
 
 	<Vol>
 		<VolMin>	0.01,  0.011,  -0.06	</VolMin>
 		<VolMax>	0.15,  0.10,  0.061	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
-		<Group> 0 </Group>
-		<Type>fluid</Type>
+		<Type>deformable</Type>
+		<Empty>true</Empty>
+		<Layer>1</Layer>
 	</Vol>
 
 	<SurfaceTension> 100 </SurfaceTension>
@@ -236,36 +237,36 @@
 	<MaxPNum> 100000 </MaxPNum>
 	<TypeNum> 3 </TypeNum>
 
-	<DT> 0.0002 </DT>
+	<DT> 0.0004 </DT>
 	<PSpacing> 0.005 </PSpacing>
 	<SmoothRatio> 2 </SmoothRatio>
 	
 	<Viscosity>	 0.05	</Viscosity>
 	<RestDensity> 1000 </RestDensity>
 	<PressureK> 1119 </PressureK>
-	<DensityArray> 1000,1000,1000 </DensityArray>
+	<DensityArray> 500,1000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
-	<Vol>
+	<!--Vol>
 		<VolMin>	-0.1,  0.01,  -0.06	</VolMin>
 		<VolMax>	0.1,  0.10,  0.06	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 		<Type>deformable</Type>
-	</Vol>
+	</Vol-->
 
-	<!--Vol>
-		<VolMin>	0.01,  0.011,  -0.06	</VolMin>
-		<VolMax>	0.15,  0.10,  0.061	</VolMax>
+	<Vol>
+		<VolMin>	-0.1,  0.0,  -0.1	</VolMin>
+		<VolMax>	0.1,  0.155,  0.1	</VolMax>
 		<VolFrac>   0,  0,  1 </VolFrac>
 		<Group> 0 </Group>
 		<Type>fluid</Type>
-	</Vol-->
+	</Vol>
 
 	<SurfaceTension> 100 </SurfaceTension>
 
 	<DriftDynamicDiffusion> 0.0 </DriftDynamicDiffusion>
-	<DriftThermalDiffusion> 0.01 </DriftThermalDiffusion>
+	<DriftThermalDiffusion> 0.0 </DriftThermalDiffusion>
 	<DriftTurbulentDiffusion> 0.0 </DriftTurbulentDiffusion>
 	<AcceleractionLimit> 20 </AcceleractionLimit>
 
@@ -275,10 +276,10 @@
 	<SolidViscosity> 0.5 </SolidViscosity>
 	<PlasticFlow> 10 </PlasticFlow>
 	<Dissolution> 0.01 </Dissolution>
-	<HeatFlowRate> 0.01 </HeatFlowRate>
-	<MeltPoint> </MeltPoint>
+	<HeatFlowRate> 0.005 </HeatFlowRate>
+	<MeltPoint> 60 </MeltPoint>
 	
-	<MaxVFraction> 0.4,1.1,1.1 </MaxVFraction>
+	<MaxVFraction> 0.5, 1.1, 1.1 </MaxVFraction>
 	<HeatCapacity> 1, 1, 1 </HeatCapacity>
 </MultiScene>
 
@@ -287,8 +288,8 @@
 
 
 <BoundInfo id="1">
-	<Viscosity>	4 </Viscosity>
-	<Friction> 2 </Friction>
+	<Viscosity>	1 </Viscosity>
+	<Friction> 1 </Friction>
 </BoundInfo>
 
 

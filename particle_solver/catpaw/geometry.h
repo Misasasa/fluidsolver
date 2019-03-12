@@ -14,12 +14,14 @@
 #define __inline__ inline
 #endif
 
+#define ZERO(a) (fabsf(a) < 1e-10)
+
 HDFUNC inline float cmin(float a, float b) {
 	return a < b ? a : b;
 }
 
 
-inline float cmax(float a, float b) {
+HDFUNC inline float cmax(float a, float b) {
 	return a > b ? a : b;
 }
 
@@ -27,19 +29,19 @@ inline float cmax(float a, float b) {
 
 struct cfloat2 {
 	float x,y;
-	cfloat2(){}
-	cfloat2(float _x,float _y):x(_x),y(_y){}
-	void Set(float _x,float _y){ x=_x; y=_y; }
-	cfloat2 operator*(float s){
+	HDFUNC cfloat2(){}
+	HDFUNC cfloat2(float _x,float _y):x(_x),y(_y){}
+	HDFUNC void Set(float _x,float _y){ x=_x; y=_y; }
+	HDFUNC cfloat2 operator*(float s){
 		return cfloat2(x*s, y*s);
 	}
-	cfloat2 operator/(float s){
+	HDFUNC cfloat2 operator/(float s){
 		return cfloat2(x/s,y/s);
 	}
-	cfloat2 operator-(cfloat2 b){
+	HDFUNC cfloat2 operator-(cfloat2 b){
 		return cfloat2(x-b.x,y-b.y);
 	}
-	cfloat2 operator+(cfloat2 b){
+	HDFUNC cfloat2 operator+(cfloat2 b){
 		return cfloat2(x+b.x, y+b.y);
 	}
 };
@@ -111,6 +113,20 @@ struct cfloat3 {
 	}
 	HDFUNC inline float square() {
 		return x*x + y*y + z*z;
+	}
+	HDFUNC inline float dot(cfloat3 right) {
+		return x*right.x + y*right.y + z*right.z;
+	}
+	HDFUNC inline float& operator[](int index) {
+		switch (index)
+		{
+		case 0:
+			return x;
+		case 1:
+			return y;
+		default:
+			return z;
+		}
 	}
 };
 
@@ -185,6 +201,10 @@ struct cmat3
 		for(int i=0;i<9;i++) data[i]=mat[i];
 	}
 
+	HDFUNC void Identity() {
+		data[0] = data[4] = data[8] = 1.0f;
+		data[1] = data[2] = data[3] = data[5] = data[6] = data[7] = 0.0f;
+	}
 	HDFUNC void Set(float mat[]) {
 		for (int i=0; i<9; i++) data[i] = mat[i];
 	}
@@ -235,6 +255,19 @@ struct cmat3
 		return inv;
 	}
 
+	HDFUNC cmat3 Reci()
+	{
+		cmat3 ret;
+		for (int i = 0; i < 9; i++)
+		{
+			if (ZERO(data[i]))
+				ret.data[i] = 0.0f;
+			else
+				ret.data[i] = 1 / data[i];
+		}
+		return ret;
+	}
+
 	HDFUNC float Norm() {
 		float norm=0;
 		for(int k=0;k<9;k++)
@@ -258,8 +291,115 @@ struct cmat3
 		}
 		return cfloat3(data[n], data[3+n], data[6+n]);
 	}
+
 };
 
+struct cmat2
+{
+	float data[4];
+	HDFUNC cmat2() {
+		for (int i = 0; i<4; i++) data[i] = 0;
+	}
+	HDFUNC cmat2(float a00, float a01, float a10, float a11) {
+		data[0] = a00; data[1] = a01; data[2] = a10; data[3] = a11;
+	}
+	HDFUNC cmat2(float mat[]) { //make sure mat longer than 4
+		for (int i = 0; i<4; i++) data[i] = mat[i];
+	}
+
+	HDFUNC void Set(float mat[]) {
+		for (int i = 0; i<4; i++) data[i] = mat[i];
+	}
+	HDFUNC void Set(float c) {
+		for (int i = 0; i<4; i++) data[i] = c;
+	}
+	HDFUNC void Print() {
+		for (int i = 0; i<2; i++) {
+			printf("%f %f\n", data[i * 2], data[i * 2 + 1]);
+		}
+	}
+	HDFUNC float* operator[](int i) {
+		return &data[i * 2];
+	}
+	HDFUNC cmat3 operator+(cmat3& b) {
+		cmat3 res;
+		for (int k = 0; k<4; k++) {
+			res.data[k] = data[k] + b.data[k];
+		}
+		return res;
+	}
+	HDFUNC cmat3 operator*(float b) {
+		cmat3 res;
+		for (int k = 0; k<4; k++) {
+			res.data[k] = data[k] * b;
+		}
+		return res;
+	}
+
+	HDFUNC float Det() {
+		return data[0] * data[3] - data[1] * data[2];
+	}
+	HDFUNC cmat2 Inv() {
+		cmat2 inv;
+		float det = Det();
+		if (fabs(det)<1e-10) {
+			return inv;
+		}
+		inv[0][0] = (*this)[1][1] / det;
+		inv[0][1] = -(*this)[0][1] / det;
+		inv[1][0] = -(*this)[1][0] / det;
+		inv[1][1] = (*this)[0][0] / det;
+		return inv;
+	}
+
+	HDFUNC float Norm() {
+		float norm = 0;
+		for (int k = 0; k<4; k++)
+			norm += data[k] * data[k];
+		return sqrt(norm);
+	}
+
+	HDFUNC void Add(cmat3& b) {
+		for (int k = 0; k<4; k++)
+			data[k] = data[k] + b.data[k];
+	}
+	HDFUNC void Multiply(float b) {
+		for (int k = 0; k<4; k++)
+			data[k] = data[k] * b;
+	}
+	HDFUNC cmat2 transpose()
+	{
+		cmat2 ret;
+		ret[0][0] = (*this)[0][0];
+		ret[0][1] = (*this)[1][0];
+		ret[1][0] = (*this)[0][1];
+		ret[1][1] = (*this)[1][1];
+		return ret;
+	}
+	
+};
+
+HDFUNC cmat3 directG3(int a, int b, float c, float s);
+HDFUNC cmat3 G3(int a, int b, float x, float y);
+HDFUNC cmat3 uncG3(int a, int b, float x, float y);
+
+HDFUNC void Zerochasing(cmat3& A, cmat3& U, cmat3& V);
+HDFUNC void Bidiagonalize(cmat3& A, cmat3& U, cmat3& V);
+HDFUNC void Updateabc(float* a, float* b, float* c, cmat3& B);
+HDFUNC cmat2 TopLeft(cmat3& A);
+HDFUNC cmat2 BotRight(cmat3& A);
+HDFUNC cmat2 G2(float c, float s);
+
+HDFUNC void PolarDecomposition2D(cmat2& A, cmat2& R, cmat2& S);
+HDFUNC void SVD2D(cmat2& A, cmat2& U, float& sigma1, float& sigma2, cmat2& V);
+HDFUNC cmat3 TopLeftAssemble(cmat2& A);
+HDFUNC cmat3 BotRightAssemble(cmat2& A);
+HDFUNC void SolveReducedTopLeft(cmat3& B, cmat3& U, cmat3& S, cmat3& V);
+HDFUNC void SolveReducedBotRight(cmat3& B, cmat3& U, cmat3& S, cmat3& V);
+HDFUNC void SortWithTopLeftSub(cmat3& U, cmat3& S, cmat3& V);
+HDFUNC void SortWithBotRightSub(cmat3& U, cmat3& S, cmat3& V);
+HDFUNC void PostProcess(cmat3& B, cmat3& U, cmat3& V, cmat3& S, float* a, float* b, float tau);
+HDFUNC void SVD(const cmat3& A, cmat3& U, cmat3& S, cmat3 V);
 
 HDFUNC __inline__ cmat3 TensorProduct(cfloat3& a, cfloat3& b) {
 	cmat3 res;
@@ -291,6 +431,15 @@ HDFUNC __inline__ void  mat3prod(cmat3& a, cmat3& b, cmat3& c) {
 	c[2][0] = a[2][0]*b[0][0]+a[2][1]*b[1][0]+a[2][2]*b[2][0];
 	c[2][1] = a[2][0]*b[0][1]+a[2][1]*b[1][1]+a[2][2]*b[2][1];
 	c[2][2] = a[2][0]*b[0][2]+a[2][1]*b[1][2]+a[2][2]*b[2][2];
+}
+
+HDFUNC __inline__ void mat2prod(cmat2& a, cmat2& b, cmat2& c)
+{
+	c[0][0] = a[0][0] * b[0][0] + a[0][1] * b[1][0];
+	c[0][1] = a[0][0] * b[0][1] + a[0][1] * b[1][1];
+
+	c[1][0] = a[1][0] * b[0][0] + a[1][1] * b[1][0];
+	c[1][1] = a[1][0] * b[0][1] + a[1][1] * b[1][1];
 }
 
 HDFUNC __inline__ void mat3transpose(cmat3& a, cmat3& b) {
@@ -575,4 +724,108 @@ public:
 struct vertex {
 	cfloat3 pos;
 	cfloat4 color;
+};
+
+class GivensRotation {
+public:
+	int rowi;
+	int rowk;
+	float c;
+	float s;
+
+	HDFUNC inline GivensRotation(int rowi_in, int rowk_in) : rowi(rowi_in), rowk(rowk_in), c(1), s(0) {}
+	HDFUNC inline GivensRotation(float a, float b, int rowi_in, int rowk_in) : rowi(rowi_in), rowk(rowk_in) { compute(a, b); }
+	HDFUNC inline void transposeInPlace() { s = -s; }
+	HDFUNC inline void compute(const float a, const float b)
+	{
+		float d = a * a + b * b;
+		c = 1;
+		s = 0;
+		if (!ZERO(d))
+		{
+			float t = 1 / sqrt(d);
+			c = a * t;
+			s = -b * t;
+		}
+	}
+	HDFUNC inline void computeUnconventional(const float a, const float b)
+	{
+		float d = a * a + b * b;
+		c = 0;
+		s = 1;
+		if (d != 0) {
+			float t = 1 / sqrt(d);
+			s = a * t;
+			c = b * t;
+		}
+	}
+	HDFUNC inline void fill2(cmat2& R) const
+	{
+		R[rowi][rowi] = c;
+		R[rowk][rowi] = -s;
+		R[rowi][rowk] = s;
+		R[rowk][rowk] = c;
+	}
+	HDFUNC inline void fill3(cmat3& R) const
+	{
+		R.Identity();
+		R[rowi][rowi] = c;
+		R[rowk][rowi] = -s;
+		R[rowi][rowk] = s;
+		R[rowk][rowk] = c;
+	}
+
+	HDFUNC inline void rowRotation2(cmat2& A) const
+	{
+		for (int j = 0; j < 2; j++) {
+			float tau1 = A[rowi][j];
+			float tau2 = A[rowk][j];
+			A[rowi][j] = c * tau1 - s * tau2;
+			A[rowk][j] = s * tau1 + c * tau2;
+		}
+	}
+
+	HDFUNC inline void rowRotation3(cmat3& A) const
+	{
+		for (int j = 0; j < 3; j++) {
+			float tau1 = A[rowi][j];
+			float tau2 = A[rowk][j];
+			A[rowi][j] = c * tau1 - s * tau2;
+			A[rowk][j] = s * tau1 + c * tau2;
+		}
+	}
+
+	HDFUNC inline void columnRotation2(cmat2& A) const
+	{
+		for (int j = 0; j < 2; j++) {
+			float tau1 = A[j][rowi];
+			float tau2 = A[j][rowk];
+			A[j][rowi] = c * tau1 - s * tau2;
+			A[j][rowk] = s * tau1 + c * tau2;
+		}
+	}
+	HDFUNC inline void columnRotation3(cmat3& A) const
+	{
+		for (int j = 0; j < 3; j++) {
+			float tau1 = A[j][rowi];
+			float tau2 = A[j][rowk];
+			A[j][rowi] = c * tau1 - s * tau2;
+			A[j][rowk] = s * tau1 + c * tau2;
+		}
+	}
+
+	HDFUNC inline void operator*=(const GivensRotation& A)
+	{
+		float new_c = c * A.c - s * A.s;
+		float new_s = s * A.c + c * A.s;
+		c = new_c;
+		s = new_s;
+	}
+
+	HDFUNC inline GivensRotation operator*(const GivensRotation& A) const
+	{
+		GivensRotation r(*this);
+		r *= A;
+		return r;
+	}
 };

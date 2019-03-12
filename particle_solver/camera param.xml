@@ -2,5 +2,5 @@
 <float name="nearClip" value="0.010000"/>
 <float name="farClip" value="1500.000000"/>
 <transform name="toWorld">
-<lookat  origin=" 0.364316,-1.029871,0.608934" target="0.060787,-0.122995,0.316620" up="-0.092778,0.277200,0.956322"/>
+<lookat  origin=" 283.731079,139.808441,52.971382" target="282.805389,139.481140,52.781639" up="-0.320631,0.944921,-0.065723"/>
 </transform>

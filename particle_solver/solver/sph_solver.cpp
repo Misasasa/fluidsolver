@@ -1,271 +1,118 @@
 
 #include "cuda.h"
 #include "cuda_runtime.h"
-#include "host_defines.h"
 
 #include "sph_solver.h"
 
 
-namespace sph{
-
 extern SimParam_SPH hParam;
 
-void SPHSolver::Copy2Device() {
-	num_particles = host_x.size();
-
+void SPHSolver::CopyParticleDataToDevice() {
+	numParticles = pos.size();
 	//Single phase properties.
-	cudaMemcpy(device_data.pos,    host_x.data(),    num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.color,  host_color.data(), num_particles * sizeof(cfloat4), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.vel,	 host_v.data(),    num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.normal, host_normal.data(), num_particles * sizeof(cfloat3), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.type,   host_type.data(),   num_particles * sizeof(int),     cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.uniqueId, host_unique_id.data(), num_particles * sizeof(int), cudaMemcpyHostToDevice);
-
-
-	//Multi phase properties.
-	cudaMemcpy(device_data.group,  host_group.data(),  num_particles * sizeof(int),     cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.mass,   host_mass.data(),   num_particles * sizeof(float),   cudaMemcpyHostToDevice);
-	int num_particlesT = num_particles * hParam.maxtypenum;
-	cudaMemcpy(device_data.vFrac, host_vol_frac.data(), num_particlesT * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.restDensity, host_rest_density.data(), num_particles * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.temperature, host_temperature.data(), num_particles*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.heat_buffer, host_heat_buffer.data(), num_particles*sizeof(float), cudaMemcpyHostToDevice);
-
-	//Deformable Solid properties.
-	cudaMemcpy(device_data.local_id, host_localid.data(),num_particles*sizeof(int), cudaMemcpyHostToDevice);
-
-	CopyParam2Device();
+	cudaMemcpy(device_data.pos,    pos.data(),    numParticles * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.color,  color.data(), numParticles * sizeof(cfloat4), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.vel,	 vel.data(),    numParticles * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.normal, normal.data(), numParticles * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.type,   type.data(),   numParticles * sizeof(int),     cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.uniqueId, unique_id.data(), numParticles * sizeof(int), cudaMemcpyHostToDevice);
 }
 
-void SPHSolver::Copy2Device(int begin, int  end) {
-	num_particles = host_x.size();
+void SPHSolver::CopyParticleDataToDevice(int begin, int  end) {
+	numParticles = pos.size();
 	int copy_length = end-begin; //end not included
 
-	cudaMemcpy(device_data.pos+begin,		host_x.data()+begin,		copy_length * sizeof(cfloat3),  cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.color+begin,	host_color.data()+begin, copy_length * sizeof(cfloat4), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.pos+begin, pos.data()+begin, copy_length * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.color+begin,	color.data()+begin, copy_length * sizeof(cfloat4), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.vel+begin, vel.data()+begin, copy_length * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.normal+begin, normal.data()+begin, copy_length * sizeof(cfloat3), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.type+begin, type.data()+begin, copy_length * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.uniqueId+begin, unique_id.data()+begin, copy_length * sizeof(int), cudaMemcpyHostToDevice);
 
-	cudaMemcpy(device_data.vel+begin,		host_v.data()+begin,		copy_length * sizeof(cfloat3),  cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.normal+begin,	host_normal.data()+begin,	copy_length * sizeof(cfloat3),  cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.type+begin,	host_type.data()+begin,		copy_length * sizeof(int),		cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.group+begin,	host_group.data()+begin,	copy_length * sizeof(int),		cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.mass+begin,	host_mass.data()+begin,		copy_length * sizeof(float),	cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.uniqueId+begin,host_unique_id.data()+begin, copy_length * sizeof(int),		cudaMemcpyHostToDevice);
-
-
-
-	// multiphase data
-	int num_particlesT = num_particles * hParam.maxtypenum;
-	int copy_length_type = copy_length * hParam.maxtypenum;
-	
-	cudaMemcpy(device_data.vFrac + begin*hParam.maxtypenum, 
-		host_vol_frac.data() + begin*hParam.maxtypenum, 
-		copy_length_type * sizeof(float),
-		cudaMemcpyHostToDevice);
-	cudaMemcpy(device_data.restDensity + begin*hParam.maxtypenum,
-		host_rest_density.data() + begin*hParam.maxtypenum,
-		copy_length_type * sizeof(float),
-		cudaMemcpyHostToDevice);
-
-	
-	CopyParam2Device();
 }
 
 
-void SPHSolver::CopyFromDevice() {
-	cudaMemcpy(host_x.data(),		device_data.pos, num_particles * sizeof(cfloat3), cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_color.data(),	device_data.color, num_particles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
+void SPHSolver::CopyPosColorFromDevice() {
+	cudaMemcpy(pos.data(),		device_data.pos, numParticles * sizeof(cfloat3), cudaMemcpyDeviceToHost);
+	cudaMemcpy(color.data(),	device_data.color, numParticles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
 }
 
-void SPHSolver::CopyFromDeviceFull() {
-	cudaMemcpy(host_x.data(), device_data.pos, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_color.data(), device_data.color, num_particles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
-	
-
-	cudaMemcpy(host_v.data(),		device_data.vel, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_type.data(), device_data.type, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_group.data(), device_data.group, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_mass.data(),	device_data.mass, sizeof(float)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_unique_id.data(), device_data.uniqueId, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_id_table.data(), device_data.indexTable, sizeof(int)*num_particles, cudaMemcpyDeviceToHost);
-	
-	cudaMemcpy(host_vol_frac.data(), device_data.vFrac, sizeof(float)*num_particles*hParam.maxtypenum, cudaMemcpyDeviceToHost);
-	cudaMemcpy(host_v_star.data(), device_data.v_star, sizeof(cfloat3)*num_particles, cudaMemcpyDeviceToHost);
+void SPHSolver::CopySimulationDataFromDevice() {
+	cudaMemcpy(pos.data(), device_data.pos, sizeof(cfloat3)*numParticles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(color.data(), device_data.color, numParticles * sizeof(cfloat4), cudaMemcpyDeviceToHost);
+	cudaMemcpy(vel.data(),		device_data.vel, sizeof(cfloat3)*numParticles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(type.data(), device_data.type, sizeof(int)*numParticles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(unique_id.data(), device_data.uniqueId, sizeof(int)*numParticles, cudaMemcpyDeviceToHost);
+	cudaMemcpy(id_table.data(), device_data.indexTable, sizeof(int)*numParticles, cudaMemcpyDeviceToHost);
 }
 
 
-void SPHSolver::Sort() {
-	calcHash(device_data, num_particles);
+void SPHSolver::SortParticles() {
+	calcHash(device_data, numParticles);
 
-	sortParticle(device_data, num_particles);
+	sortParticle(device_data, numParticles);
 
-	reorderDataAndFindCellStart(device_data, num_particles, num_grid_cells);
+	reorderDataAndFindCellStart(device_data, numParticles, num_grid_cells);
 	
 	//Single Phase
-	cudaMemcpy(device_data.pos,		device_data.sortedPos,	num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.vel,		device_data.sortedVel,	num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.normal,	device_data.sortedNormal, num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.color,		device_data.sortedColor,	num_particles * sizeof(cfloat4), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.type,		device_data.sortedType,	num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.pos,		device_data.sortedPos,	numParticles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.vel,		device_data.sortedVel,	numParticles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.normal,	device_data.sortedNormal, numParticles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.color,		device_data.sortedColor,	numParticles * sizeof(cfloat4), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.type,		device_data.sortedType,	numParticles * sizeof(int), cudaMemcpyDeviceToDevice);
 	
 	//Multi Phase
-	cudaMemcpy(device_data.group,		device_data.sortedGroup,	num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.mass,		device_data.sortedMass,	num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.uniqueId,	device_data.sortedUniqueId, num_particles * sizeof(int), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.v_star,    device_data.sortedV_star, num_particles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.restDensity, device_data.sortedRestDensity, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.vFrac,		device_data.sortedVFrac,	num_particles * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, num_particles * sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice );
-	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.temperature, device_data.sorted_temperature, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.heat_buffer, device_data.sorted_heat_buffer, num_particles*sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.group,		device_data.sortedGroup,	numParticles * sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.mass,		device_data.sortedMass,	numParticles * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.uniqueId,	device_data.sortedUniqueId, numParticles * sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.v_star,    device_data.sortedV_star, numParticles * sizeof(cfloat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.restDensity, device_data.sortedRestDensity, numParticles * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.vFrac,		device_data.sortedVFrac,	numParticles * hParam.maxtypenum * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.effective_mass,   device_data.sorted_effective_mass, numParticles * sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.rho_stiff, device_data.sorted_rho_stiff, numParticles*sizeof(float), cudaMemcpyDeviceToDevice );
+	cudaMemcpy(device_data.div_stiff, device_data.sorted_div_stiff, numParticles*sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.temperature, device_data.sorted_temperature, numParticles*sizeof(float), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.heat_buffer, device_data.sorted_heat_buffer, numParticles*sizeof(float), cudaMemcpyDeviceToDevice);
 
 	//Deformable Solid
-	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, num_particles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
-	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, num_particles*sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, numParticles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, numParticles*sizeof(int), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
 
-	Sort();
+	SortParticles();
 
-	ComputePressure(device_data, num_particles);
+	ComputePressure(device_data, numParticles);
 
-	computeForce(device_data, num_particles);
+	computeForce(device_data, numParticles);
 
-	Advect(device_data, num_particles);
+	Advect(device_data, numParticles);
 
-	CopyFromDevice();
+	CopyPosColorFromDevice();
 }
 
 
 
 void SPHSolver::SetupDFSPH() {
 	SetupFluidScene();
-	Sort();
-	computeDensityAlpha(device_data, num_particles);
+	SortParticles();
+	computeDensityAlpha(device_data, numParticles);
 }
 
 void SPHSolver::SolveDFSPH() {
-	//compute non-pressure force
-	//predict velocities
-	//computeNonPForce(device_data, num_particles);
+	
+	computeNonPForce(device_data, numParticles);
 
-	//correct density
-	correctDensityError(device_data, num_particles, 5, 1, false);
+	correctDensityError(device_data, numParticles, 5, 1, false);
+	
+	SortParticles();
+	computeDensityAlpha(device_data,numParticles);
 
-	//update neighbors
-	Sort();
+	correctDivergenceError(device_data, numParticles, 5, 1, false);
 
-	//update rho and alpha
-	computeDensityAlpha(device_data,num_particles);
-
-	//correct divergence
-	//update velocities
-	correctDivergenceError(device_data, num_particles, 5, 1, false);
-
-	CopyFromDevice();
+	CopyPosColorFromDevice();
 }
-
-
-
-
-
-
-void SPHSolver::PhaseDiffusion_Host() {
-
-	DriftVelocity(device_data, num_particles);
-
-	PhaseDiffusion(device_data, num_particles, NULL, frame_count);
-	//PhaseDiffusion(device_data, num_particles);
-	
-	EffectiveMass(device_data, num_particles);
-
-	DFSPHFactor_Multiphase(device_data, num_particles);
-
-}
-
-
-
-void SPHSolver::SetupMultiphaseSPH() {
-	SetupFluidScene();
-	run_mode = MSPH;
-
-	Sort();
-	EffectiveMass(device_data, num_particles);
-	DFSPHFactor_Multiphase(device_data, num_particles);
-	RigidParticleVolume(device_data, num_particles);
-	InitializeDeformable(device_data, num_particles);
-}
-
-void SPHSolver::SolveMultiphaseSPH() {
-	
-	
-	catpaw::cTime clock; clock.tick();
-	
-	//DetectDispersedParticles(device_data, num_particles);
-	NonPressureForce_Multiphase(device_data, num_particles);
-	//printf("predict %f\n",clock.tack()*1000); clock.tick();
-	
-	//compute tension in solids
-	ComputeTension(device_data, num_particles);
-
-	//clock.tick();
-	EnforceDensity_Multiphase(device_data, num_particles, 30, 0.5, 2, false,  true);
-	//clock.tack("density solve");
-	
-	if (advect_scriptobject_on) {
-		
-		if(frame_count<1049)
-			AdvectScriptObject(device_data, num_particles, cfloat3(0,-0.5,0));
-		else
-			AdvectScriptObject(device_data, num_particles, cfloat3(0.5, 0.5, 0));
-		RigidParticleVolume(device_data, num_particles);
-	}
-		
-
-	Sort();
-	
-	DFSPHFactor_Multiphase(device_data, num_particles);
-	
-
-	//clock.tick();
-	EnforceDivergenceFree_Multiphase(device_data, num_particles, 5, 0.5, false, true);
-	//clock.tack("divergence solve"); clock.tick();
-
-
-	//update deformation gradient F
-	UpdateSolidState(device_data, num_particles, VON_MISES);
-	
-	
-	PhaseDiffusion_Host();
-	
-	//HeatConduction(device_data, num_particles);
-
-	UpdateSolidTopology(device_data, num_particles);
-
-
-
-	CopyFromDevice();
-}
-
-void SPHSolver::SolveMultiphaseSPHRen() {
-	
-	ComputePressure(device_data, num_particles);
-	ComputeForceMultiphase(device_data, num_particles);
-	Advect(device_data, num_particles);
-	
-	Sort();
-	
-	ComputePressure(device_data, num_particles);
-	DriftVel_Ren(device_data, num_particles);
-	PhaseDiffusion_Ren(device_data, num_particles);
-	EffectiveMass(device_data, num_particles);
-	
-	CopyFromDevice();
-}
-
-
 
 void SPHSolver::Eval(const char* expression) {
 	if (strcmp(expression, "DumpRenderData")==0) {
@@ -276,24 +123,14 @@ void SPHSolver::Eval(const char* expression) {
 
 void SPHSolver::Step() {
 
-	if (num_particles>0) {
+	if (numParticles>0) {
 		switch (run_mode) {
 		case SPH:
 			SolveSPH(); break;
 		case DFSPH:
 			SolveDFSPH(); break;
-		case MSPH:
-			SolveMultiphaseSPH(); break;
-		case MSPH_REN:
-			SolveMultiphaseSPHRen(); break;
 		}
-		
-
 	}
-
-	//if(emit_particle_on)
-	//	fluidSrcEmit();
-
 
 	frame_count++;
 	time += hParam.dt;
@@ -309,50 +146,39 @@ void SPHSolver::DumpSimulationDataText() {
 		printf("error opening file\n"); return;
 	}
 
-	CopyFromDeviceFull();
+	CopySimulationDataFromDevice();
 
 	// Particle Data
-	fprintf(fp, "%d\n", num_particles);
-	for (int i=0; i<num_particles; i++) {
-		fprintf(fp, "%f %f %f ", host_x[i].x, host_x[i].y, host_x[i].z);
-		fprintf(fp, "%f %f %f ", host_v[i].x, host_v[i].y, host_v[i].z);
-		fprintf(fp, "%d ", host_type[i]);
-		fprintf(fp, "%d ", host_group[i]);
-		fprintf(fp, "%f ", host_mass[i]);
-		fprintf(fp, "%d ", host_unique_id[i]);
-		fprintf(fp, "%f %f %f ",host_v_star[i].x, host_v_star[i].y, host_v_star[i].z);
-		
-		for(int k=0;k<hParam.maxtypenum;k++)
-			fprintf(fp, "%f ", host_vol_frac[i*hParam.maxtypenum+k]);
+	fprintf(fp, "%d\n", numParticles);
+	for (int i=0; i<numParticles; i++) {
+		fprintf(fp, "%f %f %f ", pos[i].x, pos[i].y, pos[i].z);
+		fprintf(fp, "%f %f %f ", vel[i].x, vel[i].y, vel[i].z);
+		fprintf(fp, "%d ", type[i]);
+		fprintf(fp, "%d ", unique_id[i]);
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
 }
 
 void SPHSolver::DumpRenderData() {
-	//printf("Dumping rendering data at frame %d\n", frame_count);
+	
 	char filepath[1000];
 	sprintf(filepath, "..\\particle_data\\%03d.txt", dump_count++);
 
 	FILE* fp = fopen(filepath, "w+");
 	if (fp == NULL) {
-		printf("error opening file\n"); return;
+		printf("error opening file\n"); 
+		return;
 	}
 
-	CopyFromDeviceFull();
+	CopySimulationDataFromDevice();
 
-	// Particle Data
+	
 	fprintf(fp, "frame %d\n", frame_count);
 	int output_count=0;
-	//fprintf(fp, "%d\n", num_particles);
-	for (int i=0; i<num_particles; i++) {
-
-		if(host_type[i]!=TYPE_FLUID)
-			continue;
-
-		fprintf(fp, "%d %f %f %f ", output_count++, host_x[i].x, host_x[i].y, host_x[i].z);
-		//fprintf(fp, "%f %f %f ",host_color[i].x, host_color[i].y, host_color[i].z);
-		fprintf(fp, "%f %f %f ", host_vol_frac[i*hParam.maxtypenum], host_vol_frac[i*hParam.maxtypenum+1], host_vol_frac[i*hParam.maxtypenum+2]);
+	
+	for (int i=0; i<numParticles; i++) {
+		fprintf(fp, "%d %f %f %f ", output_count++, pos[i].x, pos[i].y, pos[i].z);
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
@@ -366,21 +192,15 @@ void SPHSolver::LoadSimulationDataText(char* filepath, cmat4& materialMat) {
 		printf("error opening file\n"); return;
 	}
 	// Particle Data
-	fscanf(fp, "%d\n", &num_particles);
-	for (int pi=0; pi<num_particles; pi++) {
+	fscanf(fp, "%d\n", &numParticles);
+	for (int pi=0; pi<numParticles; pi++) {
 
 		int i = AddDefaultParticle();
 
-		fscanf(fp, "%f %f %f ", &host_x[i].x, &host_x[i].y, &host_x[i].z);
-		fscanf(fp, "%f %f %f ", &host_v[i].x, &host_v[i].y, &host_v[i].z);
-		fscanf(fp, "%d ", &host_type[i]);
-		fscanf(fp, "%d ", &host_group[i]);
-		fscanf(fp, "%f ", &host_mass[i]);
-		fscanf(fp, "%d ", &host_unique_id[i]);
-		fscanf(fp, "%f %f %f ", &host_v_star[i].x, &host_v_star[i].y, &host_v_star[i].z);
-
-		for (int k=0; k<hParam.maxtypenum; k++)
-			fscanf(fp, "%f ", &host_vol_frac[i*hParam.maxtypenum+k]);
+		fscanf(fp, "%f %f %f ", &pos[i].x, &pos[i].y, &pos[i].z);
+		fscanf(fp, "%f %f %f ", &vel[i].x, &vel[i].y, &vel[i].z);
+		fscanf(fp, "%d ", &type[i]);
+		fscanf(fp, "%d ", &unique_id[i]);
 		fscanf(fp,"\n");
 	}
 	fclose(fp);
@@ -405,8 +225,8 @@ void SPHSolver::HandleKeyEvent(char key) {
 		break;
 	
 	case 'm':
-		MoveConstraintBoxAway(device_data, num_particles);
-		RigidParticleVolume(device_data, num_particles);
+		MoveConstraintBoxAway(device_data, numParticles);
+		RigidParticleVolume(device_data, numParticles);
 		break;
 	}
 
@@ -513,7 +333,7 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	//Parameter initialization.
 	frame_count = 0;
 	dump_count = 0;
-	num_particles = 0;
+	numParticles = 0;
 	num_fluid_particles = 0;
 	hParam.num_fluid_p = 0;
 	for(int k=0; k<100; k++) 
@@ -546,204 +366,25 @@ void SPHSolver::LoadParam(char* xmlpath) {
 	hParam.kernel_cubic_gradient = 1.5/3.141593f/pow(sr/2, 4);
 
 
-	hParam.melt_point = 40;
-	hParam.latent_heat = 1;
+	hParam.melt_point = 60;
+	hParam.latent_heat = 10;
 }
 
 void SPHSolver::SetupHostBuffer() {
 	int maxNP = hParam.maxpnum;
 }
 
-//zero by default
-cmat3 zero_mat3;
 
 int SPHSolver::AddDefaultParticle() {
 
 	//Single-phase properties.
-	host_x.push_back(cfloat3(0, 0, 0));
-	host_color.push_back(cfloat4(1, 1, 1, 1));
-	host_normal.push_back(cfloat3(0, 0, 0));
-	host_unique_id.push_back(host_x.size()-1);
-	host_v.push_back(cfloat3(0, 0, 0));
-	host_type.push_back(TYPE_FLUID);
-	
-	
-	//Multi-phase properties.
-	host_mass.push_back(0);
-	host_group.push_back(0);
-	host_rest_density.push_back(0);
-	host_v_star.push_back(cfloat3(0,0,0));
-	host_localid.push_back(0);
-	host_temperature.push_back(25); //Maybe room temperature 25 degree.
-	host_heat_buffer.push_back(0);
-
-	for (int t=0; t<hParam.maxtypenum; t++)
-		host_vol_frac.push_back(0);
-
-	
-	//Solid material properties.
-	host_cauchy_stress.push_back(zero_mat3);
-
-	
-	
-	return host_x.size()-1;
-}
-
-
-void SPHSolver::Addfluidvolumes() {
-	
-
-	for (int i=0; i<fluid_volumes.size(); i++) {
-		cfloat3 xmin = fluid_volumes[i].xmin;
-		cfloat3 xmax = fluid_volumes[i].xmax;
-		int addcount=0;
-
-		//float* vf    = fluid_volumes[i].volfrac;
-		float spacing = hParam.spacing;
-		float pden = hParam.restdensity;
-		float mp   = spacing*spacing*spacing* pden;
-		float pvisc = hParam.viscosity;
-
-		for (float x=xmin.x; x<xmax.x; x+=spacing)
-			for (float y=xmin.y; y<xmax.y; y+=spacing)
-				for (float z=xmin.z; z<xmax.z; z+=spacing) {
-					int pid = AddDefaultParticle();
-					host_x[pid] = cfloat3(x, y, z);
-					host_color[pid]=cfloat4(0.7, 0.75, 0.95, 1);
-					host_type[pid] = TYPE_FLUID;
-					host_mass[pid] = mp;
-					host_group[pid] = 0;
-					addcount += 1;
-				}
-
-		printf("fluid block No. %d has %d particles.\n", i, addcount);
-	}
-}
-
-void SPHSolver::AddTestVolume() {
-	cfloat3 xmin( -0.12, 0.011, -0.12);
-	cfloat3 xmax( 0.12, 0.241, 0.12 );
-	int addcount=0;
-
-	float spacing = hParam.spacing;
-	float density1 = 0, density2 = 0;
-	
-	float vf1[3]={1,0,0};
-	float vf2[3]={0,1,0};
-	for (int t=0; t<hParam.maxtypenum; t++){
-		density1 += hParam.densArr[t] * vf1[t];
-		density2 += hParam.densArr[t] * vf2[t];
-	}
-
-	float vol   = spacing*spacing*spacing;
-	int type;
-	float pad = 0.03;
-	for (float x=xmin.x; x<xmax.x; x+=spacing)
-		for (float y=xmin.y; y<xmax.y; y+=spacing)
-			for (float z=xmin.z; z<xmax.z; z+=spacing) {
-				int pid = AddDefaultParticle();
-				
-				host_x[pid] = cfloat3(x, y, z);
-				
-				if (x>xmin.x+pad && x<xmax.x-pad 
-					&& y>xmin.y+pad && y<xmax.y-pad 
-					&& z>xmin.z+pad && z<xmax.z-pad)
-				{
-					host_color[pid]=cfloat4(vf2[0], vf2[1], vf2[2], 1);
-
-					type = TYPE_FLUID;
-					host_type[pid] = type;
-
-					host_group[pid] = 0;
-					host_mass[pid] = vol * density2;
-					host_rest_density[pid] = density2;
-					host_localid[pid] = localid_counter[type]++;
-
-					for (int t=0; t<hParam.maxtypenum; t++)
-						host_vol_frac[pid*hParam.maxtypenum+t] = vf2[t];
-					hParam.num_fluid_p += 1;
-
-				}
-				else {
-					host_color[pid]=cfloat4(vf1[0], vf1[1], vf1[2], 1);
-
-					type = TYPE_DEFORMABLE;
-					host_type[pid] = type;
-
-					host_group[pid] = 0;
-					host_mass[pid] = vol * density1;
-					host_rest_density[pid] = density1;
-					host_localid[pid] = localid_counter[type]++;
-
-					for (int t=0; t<hParam.maxtypenum; t++)
-						host_vol_frac[pid*hParam.maxtypenum+t] = vf1[t];
-					hParam.num_deformable_p += 1;
-				}
-				
-
-				addcount += 1;
-			}
-	
-	printf("test block No. %d has %d particles.\n", 0, addcount);
-}
-
-void SPHSolver::AddMultiphaseFluidVolumes() {
-
-	for (int i=0; i<fluid_volumes.size(); i++) {
-		cfloat3 xmin = fluid_volumes[i].xmin;
-		cfloat3 xmax = fluid_volumes[i].xmax;
-		int addcount=0;
-
-		float* vf    = fluid_volumes[i].volfrac;
-		int type = fluid_volumes[i].type;
-		if (!(type==TYPE_FLUID || type==TYPE_DEFORMABLE || type==TYPE_GRANULAR))
-		{
-			printf("Error: wrong volume type.\n"); 
-			continue;
-		}
-
-		int group = fluid_volumes[i].group;
-		float spacing = hParam.spacing;
-		float density = 0;
-		for (int t=0; t<hParam.maxtypenum; t++)
-			density += hParam.densArr[t] * vf[t];
-
-		float mp   = spacing*spacing*spacing* density;
-		float pvisc = hParam.viscosity;
-
-		for (float x=xmin.x; x<xmax.x; x+=spacing)
-			for (float y=xmin.y; y<xmax.y; y+=spacing)
-				for (float z=xmin.z; z<xmax.z; z+=spacing) {
-					int pid = AddDefaultParticle();
-					host_x[pid] = cfloat3(x, y, z);
-					host_color[pid]=cfloat4(vf[0], vf[1], vf[2], 1);
-					host_type[pid] = type;
-					
-					host_group[pid] = group;
-					host_mass[pid] = mp;
-					host_rest_density[pid] = density;
-					host_localid[pid] = localid_counter[type]++;
-					
-					if(type==TYPE_FLUID)
-						host_temperature[pid] = 90;
-
-					for (int t=0; t<hParam.maxtypenum; t++)
-						host_vol_frac[pid*hParam.maxtypenum+t] = vf[t];
-
-					addcount += 1;
-				}
-		if (type==TYPE_FLUID) {
-			printf("Block No. %d, type: fluid, particle num: %d\n", i, addcount);
-			hParam.num_fluid_p += addcount;
-		}
-		else if(type==TYPE_DEFORMABLE){
-			printf("Block No. %d, type: deformable, particle num: %d\n", i, addcount);
-			hParam.num_deformable_p += addcount;
-		}
-		else if(type==TYPE_GRANULAR){
-			printf("Block No. %d, type: granular, particle num: %d\n", i, addcount);
-		}
-	}
+	pos.push_back(cfloat3(0, 0, 0));
+	color.push_back(cfloat4(1, 1, 1, 1));
+	normal.push_back(cfloat3(0, 0, 0));
+	unique_id.push_back(pos.size()-1);
+	vel.push_back(cfloat3(0, 0, 0));
+	type.push_back(TYPE_FLUID);
+	return pos.size()-1;
 }
 
 void SPHSolver::LoadPO(ParticleObject* po) {
@@ -753,16 +394,51 @@ void SPHSolver::LoadPO(ParticleObject* po) {
 
 	for (int i=0; i<po->pos.size(); i++) {
 		int pid = AddDefaultParticle();
-		host_x[pid] = po->pos[i];
+		pos[pid] = po->pos[i];
 		if(po->id[i]==2)
-			host_color[pid] = cfloat4(1,1,1,0.5);
+			color[pid] = cfloat4(1,1,1,0.5);
 		else
-			host_color[pid] = cfloat4(1, 1, 1, 0);
+			color[pid] = cfloat4(1, 1, 1, 0.0);
 
-		host_type[pid] = TYPE_RIGID;
-		host_normal[pid] = po->normal[i];
-		host_mass[pid] = mp;
-		host_group[pid] = po->id[i];
+		type[pid] = TYPE_RIGID;
+		normal[pid] = po->normal[i];
+	}
+}
+
+void SPHSolver::LoadPO(ParticleObject* po, int objectType)
+{
+	
+	float vf[3] = {1,0,0};
+	int addcount = 0;
+	 
+	float spacing = hParam.spacing;
+	float density = 0;
+	for (int t=0; t<hParam.maxtypenum; t++)
+		density += hParam.densArr[t] * vf[t];
+	
+	float mp   = spacing*spacing*spacing* density;
+
+	float relax = 1.65;
+	for (int i=0; i<po->pos.size(); i++) {
+		int pid = AddDefaultParticle();
+		pos[pid] = po->pos[i];
+		pos[pid] *= 0.005 * relax;
+		pos[pid].y += 0.16;
+
+		type[pid] = objectType;
+		addcount ++;
+	}
+
+	if (objectType==TYPE_FLUID) {
+		printf("PO type: fluid, particle num: %d\n", addcount);
+		hParam.num_fluid_p += addcount;
+	}
+	else if (objectType==TYPE_DEFORMABLE) {
+		printf("PO type: deformable, particle num: %d\n", addcount);
+		hParam.num_deformable_p += addcount;
+	}
+	else if (objectType==TYPE_GRANULAR) {
+		printf("PO type: granular, particle num: %d\n", addcount);
 	}
 }
 
@@ -770,41 +446,28 @@ void SPHSolver::SetupFluidScene() {
 	LoadParam("config/sph_scene.xml");
 	SetupHostBuffer();
 
-	AddMultiphaseFluidVolumes();
-	//AddTestVolume();
-
 	BoundaryGenerator bg;
-	ParticleObject* boundary = bg.loadxml("config/water tank.xml");
+	ParticleObject* boundary = bg.loadxml("config/big box.xml");
 	LoadPO(boundary);
 	delete boundary;
 
+	ObjParser objparser;
+	ParticleObject* duck = objparser.loadPoints("config/ducky.obj");
+	printf("duck has %d points\n", duck->pos.size());
+	LoadPO(duck, TYPE_DEFORMABLE);
+	delete duck;
+
 	SetupDeviceBuffer();
-	Copy2Device();
+	CopyParticleDataToDevice();
+	CopyParam2Device();
 }
 
-
-
-void SPHSolver::SetupMultiphaseSPHRen() {
-	SetupFluidScene();
-	run_mode = MSPH_REN;
-
-	Sort();
-	EffectiveMass(device_data, num_particles);
-	//DFSPHFactor_Multiphase(device_data, num_particles);
-	RigidParticleVolume(device_data, num_particles);
-	//InitializeDeformable(device_data, num_particles);
-}
 
 void SPHSolver::Setup() {
 	
 	//SetupFluidScene(); run_mode = SPH;
 
-	//SetupDFSPH(); run_mode = DFSPH;
-
-	SetupMultiphaseSPH();
-
-	//SetupMultiphaseSPHRen();
-
+	SetupDFSPH(); run_mode = DFSPH;
 }
 
 
@@ -813,8 +476,8 @@ void SPHSolver::Setup() {
 void SPHSolver::SetupDeviceBuffer() {
 
 	//particle
-	int maxpnum = host_x.size();
-	host_id_table.resize(maxpnum);
+	int maxpnum = pos.size();
+	id_table.resize(maxpnum);
 
 	cudaMalloc(&device_data.pos, maxpnum * sizeof(float3));
 	cudaMalloc(&device_data.vel, maxpnum * sizeof(float3));
@@ -862,6 +525,8 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.spatial_status, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.temperature, maxpnum*sizeof(float));
 	cudaMalloc(&device_data.heat_buffer, maxpnum*sizeof(float));
+
+	cudaMalloc(&device_data.flux_buffer, num_pt*sizeof(cfloat3));
 	
 	cudaMalloc(&device_data.sortedVFrac, num_pt*sizeof(float));
 	cudaMalloc(&device_data.sortedRestDensity,	maxpnum*sizeof(float));
@@ -872,6 +537,7 @@ void SPHSolver::SetupDeviceBuffer() {
 	// Deformable Solid
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.vel_right, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
 	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
 	cudaMalloc(&device_data.neighbordx, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(cfloat3));
@@ -894,5 +560,3 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.gridCellStart, glen * sizeof(int));
 	cudaMalloc(&device_data.gridCellEnd, glen * sizeof(int));
 }
-
-};
