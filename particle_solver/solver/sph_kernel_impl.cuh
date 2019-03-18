@@ -184,7 +184,9 @@ __global__ void reorderDataAndFindCellStartD(
 		data.sorted_heat_buffer[index] = data.heat_buffer[sortedIndex];
 		//Deformable Solid
 		data.sorted_cauchy_stress[index] = data.cauchy_stress[sortedIndex];
+		data.sorted_gradient[index] = data.gradient[sortedIndex];
 		data.sorted_local_id[index] = data.local_id[sortedIndex];
+		data.sorted_adjacent_index[index] = data.adjacent_index[sortedIndex];
 
 		for(int t=0; t<dParam.maxtypenum; t++)
 			data.sortedVFrac[index*dParam.maxtypenum+t] = data.vFrac[sortedIndex*dParam.maxtypenum+t];
@@ -981,6 +983,12 @@ __global__ void updatePosition(SimData_SPH data, int num_particles) {
 	if (data.type[index]==TYPE_RIGID) return;
 
 	data.pos[index] += data.v_star[index] * dParam.dt;
+
+	if (data.type[index] == TYPE_CLOTH && data.pos[index].square() > 1)
+	{
+		printf("%f %f %f, %f %f %f\n", data.pos[index].x, data.pos[index].y, data.pos[index].z, data.v_star[index].x, data.v_star[index].y, data.v_star[index].z);
+	}
+
 }
 
 
@@ -1055,6 +1063,7 @@ __device__ void DFSPHFactorCell_Multiphase(cint3 gridPos,
 			break;
 
 		case TYPE_DEFORMABLE:
+		case TYPE_CLOTH:
 			mass_j = data.mass[i];
 			nablaw *= mass_j;
 			sum1 += nablaw;
@@ -1077,6 +1086,7 @@ __device__ void DFSPHFactorCell_Multiphase(cint3 gridPos,
 __global__ void DFSPHFactorKernel_Multiphase(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
+
 	if(data.type[index]==TYPE_RIGID) 
 		return;
 
@@ -1266,6 +1276,11 @@ __global__ void NonPressureForceKernel_Multiphase(
 		return;
 	}
 
+	if (data.type[index] == TYPE_CLOTH) { //temp
+		data.v_star[index] = data.vel[index] + dParam.gravity * dParam.dt;
+		return;
+	}
+
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
 	cfloat3 force(0, 0, 0);
@@ -1343,6 +1358,9 @@ __global__ void DensityStiff_Multiphase(
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) 
 		return;
+
+	//if (data.type[index] == TYPE_CLOTH)
+	//	printf("inter4: %f %f %f\n", data.pos[index].x, data.pos[index].y, data.pos[index].z);
 
 	if (data.type[index]==TYPE_RIGID) {
 		data.error[index] = 0;
@@ -1477,6 +1495,22 @@ __device__ void ApplyPressureCell_Multiphase(
 	
 	for (uint j = startIndex; j < endIndex; j++)
 	{
+		if (data.type[i] == TYPE_CLOTH && data.type[j] == TYPE_CLOTH)
+		{
+			bool same = false;
+			for (int k = 0; k < 8; k++)
+			{
+				int neighbor = data.indexTable[data.adjacent_index[i][k]];
+				if (neighbor == j)
+				{
+					same = true;
+					break;
+				}
+			}
+			if (same)
+				continue;
+		}
+
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
 
@@ -1493,7 +1527,7 @@ __device__ void ApplyPressureCell_Multiphase(
 
 			break;
 		case TYPE_DEFORMABLE:
-			
+		case TYPE_CLOTH:
 			force += nabla_w * (data.pstiff[i]*mass_i*mass_i/data.density[i]
 				+ data.pstiff[j]*data.mass[j]*data.mass[j]/data.density[j]);
 
@@ -1519,6 +1553,8 @@ __global__ void ApplyPressureKernel_Multiphase(
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	if (data.type[index]==TYPE_RIGID) return;
+
+	//if (data.type[index] == TYPE_CLOTH) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -1605,6 +1641,8 @@ __global__ void EnforceDensityWarmStart(
 	if (index >= num_particles) return;
 	if (data.type[index]==TYPE_RIGID) return;
 
+	if (data.type[index] == TYPE_CLOTH) return; //temp
+
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
 	cfloat3 force(0, 0, 0);
@@ -1631,6 +1669,8 @@ __global__ void EnforceDivergenceWarmStart(
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 	if (data.type[index]==TYPE_RIGID) return;
+
+	if (data.type[index] == TYPE_CLOTH) return;
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -2868,22 +2908,49 @@ __global__ void ComputeTensionWithP_Kernel(SimData_SPH data, int num_particles)
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles)
 		return;
-	if (data.type[index]!=TYPE_DEFORMABLE)
-		return;
 
-	cfloat3 x0i = data.x0[data.local_id[index]];
+	if (data.type[index] == TYPE_DEFORMABLE)
+	{
 
-	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
-	cfloat3  tension(0, 0, 0);
-	ComputeTensionWithP_Cell_Plastic(
-		index,
-		data,
-		tension);
+		cfloat3 x0i = data.x0[data.local_id[index]];
 
-	tension *= vol*vol / data.mass[index];
-	data.vel_right[index] = data.v_star[index] + tension * dParam.dt;
+		float vol = dParam.spacing*dParam.spacing*dParam.spacing;
+		cfloat3  tension(0, 0, 0);
+		ComputeTensionWithP_Cell_Plastic(
+			index,
+			data,
+			tension);
 
-	data.v_star[index] = data.vel_right[index];
+		tension *= vol*vol / data.mass[index];
+		data.vel_right[index] = data.v_star[index] + tension * dParam.dt;
+
+		data.v_star[index] = data.vel_right[index];
+	}
+
+	if (data.type[index] == TYPE_CLOTH)
+	{
+		cfloat3 tension(0, 0, 0);
+		float ladj = dParam.spacing;
+		float ldiag = ladj * 1.4142;
+
+		for (int neighbor_num = 0; neighbor_num < 8; neighbor_num++)
+		{
+			int neighbor = data.adjacent_index[index][neighbor_num];
+			if (neighbor == -1)
+				continue;
+			int j = data.indexTable[neighbor];
+			cfloat3 xij = data.pos[index] - data.pos[j];
+			float norm = xij.Norm();
+			if (neighbor_num < 4)
+				if (norm < ladj) continue;
+				else tension -= xij / norm * dParam.kadj * (norm - ladj);
+			else
+				if (norm < ldiag) continue;
+				else tension -= xij / norm * dParam.kdiag * (norm - ldiag);
+		}
+		data.v_star[index] += tension / data.mass[index] * dParam.dt;
+	}
+
 }
 
 
@@ -3147,6 +3214,8 @@ __global__ void UpdateSolidStateF_Kernel(
 	F[1][1]+=1;
 	F[2][2]+=1;
 	
+	data.gradient[index] = F;
+
 	//Compute strain epsilon.
 	cmat3 F_T;
 	mat3transpose(F, F_T);
@@ -3462,6 +3531,9 @@ __global__ void InitializeDeformable_Kernel(SimData_SPH data,
 					neighborcount,
 					kernel_tmp);
 			}
+
+	
+
 	data.neighborlist[localid_i*NUM_NEIGHBOR] = neighborcount - 1;
 
 	if(kernel_tmp.Det() > EPSILON)
@@ -3495,5 +3567,72 @@ __global__ void AdvectScriptObjectKernel(SimData_SPH data,
 	//data.vel[index].Set(0, -0.5, 0);
 	data.vel[index] = vel;
 	data.pos[index] += data.vel[index] * dParam.dt;
+
+}
+
+__device__ void HourglassControl_Cell(
+	int i,
+	SimData_SPH& data,
+	cfloat3& addition
+) {
+	float h = dParam.smoothradius * 0.5;
+	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
+	int localid_i = data.local_id[i];
+	cmat3& L = data.correct_kernel[localid_i];
+	int* neighborlist = &data.neighborlist[localid_i*NUM_NEIGHBOR];
+	int num_neighbor = neighborlist[0];
+
+	for (uint niter = 1; niter <= num_neighbor; niter++)
+	{
+
+		/* Neighborlist stores the unique id of neighboring particles.
+		We look up the index table to get the current index.
+		*/
+
+		int j = data.indexTable[neighborlist[niter]];
+
+		cfloat3 xij = data.pos[i] - data.pos[j];
+		cfloat3 xji = xij * (-1);
+		cfloat3 x0ij = data.neighbordx[localid_i*NUM_NEIGHBOR + niter];
+		cfloat3 x0ji = x0ij * (-1);
+
+		float w = Kernel_Cubic(h, x0ij);
+
+		cfloat3 xij_estimate;
+		mvprod(data.gradient[i], x0ij, xij_estimate);
+		cfloat3 eij = xij_estimate - xij;
+		//printf("err is %f %f %f\n", eij.x, eij.y, eij.z);
+
+		cfloat3 xji_estimate;
+		mvprod(data.gradient[j], x0ji, xji_estimate);
+		cfloat3 eji = xji_estimate - xji;
+
+		float norm = xij.Norm();
+		float dij = eij.dot(xij) / norm;
+		float dji = eji.dot(xji) / norm;
+
+		addition += xij / xij.Norm() * w / x0ij.square() * dParam.young * (dij + dji);
+	}
+}
+
+__global__ void HourglassControl_Kernel(SimData_SPH data, int num_particles)
+{
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles)
+		return;
+	if (data.type[index] != TYPE_DEFORMABLE)
+		return;
+
+	float vol = dParam.spacing*dParam.spacing*dParam.spacing;
+	cfloat3  addition(0, 0, 0);
+	HourglassControl_Cell(
+		index,
+		data,
+		addition);
+
+	addition *= -0.5 * 0.003 * vol * vol;
+	
+	if(data.gradient[index].Det() < EPSILON)
+		data.v_star[index] += addition * dParam.dt / data.mass[index];
 
 }

@@ -51,6 +51,7 @@ struct SimParam_SPH {
 	//solid
 	float solidK;
 	float solidG;
+	float young;
 	float Yield;
 	float solid_visc;
 	float plastic_flow;
@@ -65,6 +66,10 @@ struct SimParam_SPH {
 	float boundary_visc;
 	float boundary_friction;
 	
+	//cloth
+	float kadj;
+	float kdiag;
+
 	//Switch
 	bool enable_dissolution;
 	bool enable_melt;
@@ -85,6 +90,8 @@ struct SimData_SPH {
 	float* pressure;
 	cfloat3* force;
 	
+	adjacent* adjacent_index;
+	adjacent* sorted_adjacent_index;
 
 	cfloat3* sortedPos;
 	cfloat3* sortedVel;
@@ -133,6 +140,7 @@ struct SimData_SPH {
 	// Deformable Solid
 	cmat3* strain_rate;
 	cmat3* cauchy_stress;
+	cmat3* gradient;
 	cfloat3* vel_right;
 	int* neighborlist;   //store uniqueid
 	cfloat3* neighbordx; //store x0_ij
@@ -151,6 +159,7 @@ struct SimData_SPH {
 	cfloat3* p_this;
 
 	cmat3* sorted_cauchy_stress;
+	cmat3* sorted_gradient;
 	int*   sorted_local_id;
 
 

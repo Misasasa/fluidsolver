@@ -5,7 +5,7 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 5 </SceneId>
+	<SceneId> 7 </SceneId>
 
 </Fluid>
 
@@ -283,7 +283,57 @@
 	<HeatCapacity> 1, 1, 1 </HeatCapacity>
 </MultiScene>
 
+<MultiScene id="7">
+	<Name>		Coupling 	</Name>
 
+	<MaxPNum> 100000 </MaxPNum>
+	<TypeNum> 3 </TypeNum>
+
+	<DT> 0.00005 </DT>
+	<PSpacing> 0.005 </PSpacing>
+	<SmoothRatio> 2 </SmoothRatio>
+	
+	<Viscosity>	 0.05	</Viscosity>
+	<RestDensity> 1000 </RestDensity>
+	<PressureK> 1119 </PressureK>
+	<DensityArray> 1000,1000,1000 </DensityArray>
+	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
+
+	<Vol>
+		<VolMin>	-0.08,  0.11,  -0.08	</VolMin>
+		<VolMax>	0.08,  0.12,  0.08	</VolMax>
+		<VolFrac>   0,  0,  1 </VolFrac>
+		<Type>cloth</Type>
+
+	</Vol>
+
+	<Vol>
+		<VolMin>	-0.03,  0.00, -0.04	</VolMin>
+		<VolMax>	0.08,  0.10,  0.08	</VolMax>
+		<VolFrac>   1,  0,  1 </VolFrac>
+		<Type>deformable</Type>
+
+	</Vol>
+
+	<SurfaceTension> 100 </SurfaceTension>
+
+	<DriftDynamicDiffusion> 0.0 </DriftDynamicDiffusion>
+	<DriftThermalDiffusion> 0.01 </DriftThermalDiffusion>
+	<DriftTurbulentDiffusion> 0.0 </DriftTurbulentDiffusion>
+	<AcceleractionLimit> 20 </AcceleractionLimit>
+
+	<YoungsModulus> 25000 </YoungsModulus>
+	<PoissonsRatio> 0.3 </PoissonsRatio>
+	<Yield> 5000 </Yield>
+	<SolidViscosity> 0.5 </SolidViscosity>
+	<PlasticFlow> 10 </PlasticFlow>
+	<Dissolution> 0.01 </Dissolution>
+	<HeatFlowRate> 0.01 </HeatFlowRate>
+	<MeltPoint> </MeltPoint>
+	
+	<MaxVFraction> 0.4,1.1,1.1 </MaxVFraction>
+	<HeatCapacity> 1, 1, 1 </HeatCapacity>
+</MultiScene>
 
 
 

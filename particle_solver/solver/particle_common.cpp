@@ -28,14 +28,16 @@ void loadFluidVolume(XMLElement* sceneEle, int typenum, vector<fluidvol>& fvs) {
 		
 		//printf("%s %d\n", tmp, strcmp(tmp,"deformable"));
 
-		if(!tmp)
+		if (!tmp)
 			fv.type = TYPE_FLUID;
-		else if(strcmp(tmp,"fluid")==0)
+		else if (strcmp(tmp, "fluid") == 0)
 			fv.type = TYPE_FLUID;
-		else if(strcmp(tmp,"deformable")==0)
+		else if (strcmp(tmp, "deformable") == 0)
 			fv.type = TYPE_DEFORMABLE;
-		else if(strcmp(tmp,"granular")==0)
+		else if (strcmp(tmp, "granular") == 0)
 			fv.type = TYPE_GRANULAR;
+		else if (strcmp(tmp, "cloth") == 0)
+			fv.type = TYPE_CLOTH;
 
 		if (!empty || strcmp(empty, "false") == 0)
 			fv.empty = false;

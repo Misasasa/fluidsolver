@@ -829,3 +829,30 @@ public:
 		return r;
 	}
 };
+
+struct adjacent
+{
+	int up;
+	int down;
+	int left;
+	int right;
+	int upright;
+	int downright;
+	int downleft;
+	int upleft;
+
+	HDFUNC int& operator[](int index)
+	{
+		switch (index)
+		{
+		case 0: return up;
+		case 1: return down;
+		case 2: return left;
+		case 3: return right;
+		case 4: return upright;
+		case 5: return downright;
+		case 6: return downleft;
+		case 7: return upleft;
+		}
+	}
+};

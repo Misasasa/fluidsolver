@@ -8,6 +8,7 @@ protected:
 	vecf3 pos;
 	vecf4 color;
 	vecf3 vel;
+	vecadj adjacentIndex;
 	cfloat3 domainMin;
 	cfloat3 domainMax;
 	float dt;

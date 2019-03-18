@@ -76,7 +76,9 @@ void SPHSolver::SortParticles() {
 
 	//Deformable Solid
 	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, numParticles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.gradient, device_data.sorted_gradient, numParticles * sizeof(cmat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, numParticles*sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.adjacent_index, device_data.sorted_adjacent_index, numParticles * sizeof(adjacent), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
@@ -304,6 +306,7 @@ void SPHSolver::ParseParam(char* xmlpath) {
 
 	float E = reader.GetFloat("YoungsModulus");
 	float v = reader.GetFloat("PoissonsRatio");
+	hParam.young = E;
 	hParam.Yield = reader.GetFloat("Yield");
 	hParam.plastic_flow = reader.GetFloat("PlasticFlow");
 	hParam.solidG = E/2/(1+v);
@@ -537,6 +540,7 @@ void SPHSolver::SetupDeviceBuffer() {
 	// Deformable Solid
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.gradient, maxpnum * sizeof(cmat3));
 	cudaMalloc(&device_data.vel_right, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
 	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
@@ -549,9 +553,11 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.spatial_color, maxpnum*sizeof(float));
 
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.sorted_gradient, maxpnum * sizeof(cmat3));
 	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
 	
-
+	cudaMalloc(&device_data.adjacent_index, maxpnum * sizeof(adjacent));
+	cudaMalloc(&device_data.sorted_adjacent_index, maxpnum * sizeof(adjacent));
 
 	int glen = hParam.gridres.prod();
 

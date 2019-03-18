@@ -23,6 +23,7 @@ void MultiphaseSPHSolver::CopyParticleDataToDevice() {
 
 	//Deformable Solid properties.
 	cudaMemcpy(device_data.local_id, localid.data(), numParticles*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(device_data.adjacent_index, adjacentIndex.data(), numParticles * sizeof(adjacent), cudaMemcpyHostToDevice);
 }
 
 void MultiphaseSPHSolver::CopyParticleDataToDevice(int begin, int  end) {
@@ -90,7 +91,9 @@ void MultiphaseSPHSolver::Sort() {
 
 	//Deformable Solid
 	cudaMemcpy(device_data.cauchy_stress, device_data.sorted_cauchy_stress, numParticles*sizeof(cmat3), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.gradient, device_data.sorted_gradient, numParticles * sizeof(cmat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, numParticles*sizeof(int), cudaMemcpyDeviceToDevice);
+	cudaMemcpy(device_data.adjacent_index, device_data.sorted_adjacent_index, numParticles * sizeof(adjacent), cudaMemcpyDeviceToDevice);
 }
 
 
@@ -182,10 +185,11 @@ void MultiphaseSPHSolver::Step() {
 		case MSPH_REN:
 			SolveMultiphaseSPHRen(); break;
 		}
+
 	}
 	
 	CopyPosColorFromDevice();
-	
+
 	frame_count++;
 	time += hParam.dt;
 }
@@ -376,6 +380,7 @@ void MultiphaseSPHSolver::ParseParam(char* xmlpath) {
 
 	float E = reader.GetFloat("YoungsModulus");
 	float v = reader.GetFloat("PoissonsRatio");
+	hParam.young = E;
 	hParam.Yield = reader.GetFloat("Yield");
 	hParam.plastic_flow = reader.GetFloat("PlasticFlow");
 	hParam.solidG = E/2/(1+v);
@@ -386,6 +391,9 @@ void MultiphaseSPHSolver::ParseParam(char* xmlpath) {
 	reader.GetFloatN(hParam.max_alpha, hParam.maxtypenum, "MaxVFraction");
 	hParam.heat_flow_rate = reader.GetFloat("HeatFlowRate");
 	reader.GetFloatN(hParam.heat_capacity, hParam.maxtypenum, "HeatCapacity");
+
+	hParam.kadj = 5;
+	hParam.kdiag = 10;
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -458,6 +466,7 @@ int MultiphaseSPHSolver::AddDefaultParticle() {
 	unique_id.push_back(pos.size()-1);
 	vel.push_back(cfloat3(0, 0, 0));
 	type.push_back(TYPE_FLUID);
+	adjacentIndex.push_back(adjacent());
 
 
 	//Multi-phase properties.
@@ -492,7 +501,7 @@ void MultiphaseSPHSolver::AddMultiphaseFluidVolumes() {
 
 		int typeTmp = fluid_volumes[i].type;
 
-		if (!(typeTmp==TYPE_FLUID || typeTmp==TYPE_DEFORMABLE || typeTmp==TYPE_GRANULAR))
+		if (!(typeTmp==TYPE_FLUID || typeTmp==TYPE_DEFORMABLE || typeTmp==TYPE_GRANULAR || typeTmp==TYPE_CLOTH))
 		{
 			printf("Error: wrong volume type.\n");
 			continue;
@@ -507,7 +516,67 @@ void MultiphaseSPHSolver::AddMultiphaseFluidVolumes() {
 		float mp   = spacing*spacing*spacing* density;
 		float pvisc = hParam.viscosity;
 
-		if (fluid_volumes[i].empty)
+		if (typeTmp == TYPE_CLOTH)
+		{
+			vector<adjacent> vadj;
+
+			int i_max = 0;
+			for (float x = xmin.x; x < xmax.x; x += spacing, i_max++);
+			int j_max = 0;
+			for (float z = xmin.z; z < xmax.z; z += spacing, j_max++);
+
+			addcount = i_max * j_max;
+
+			int offset = localid_counter[TYPE_DEFORMABLE]; //now use the same one
+
+			for (int i = 0; i < i_max; i++)
+				for (int j = 0; j < j_max; j++)
+				{
+					adjacent adj;
+					adj.up = (i - 1) * j_max + j + offset;
+					adj.down = (i + 1) * j_max + j + offset;
+					adj.left = i * j_max + j - 1 + offset;
+					adj.right = i * j_max + j + 1 + offset;
+					adj.upleft = (i - 1) * j_max + j - 1 + offset;
+					adj.upright = (i - 1) * j_max + j + 1 + offset;
+					adj.downleft = (i + 1) * j_max + j - 1 + offset;
+					adj.downright = (i + 1) * j_max + j + 1 + offset;
+
+					if (i == 0)
+						adj.up = adj.upleft = adj.upright = -1;
+					if (i == i_max - 1)
+						adj.down = adj.downleft = adj.downright = -1;
+					if (j == 0)
+						adj.left = adj.upleft = adj.downleft = -1;
+					if (j == j_max - 1)
+						adj.right = adj.upright = adj.downright = -1;
+
+					vadj.push_back(adj);
+				}
+
+
+			for (int i = 0; i < i_max; i++)
+				for (int j = 0; j < j_max; j++)
+				{
+					
+					int pid = AddDefaultParticle();
+					pos[pid] = cfloat3(xmin.x + spacing * i , xmin.y, xmin.z + spacing * j);
+
+					//printf("adding:%f %f %f\n", xmin.x + spacing * i, xmin.y, xmin.z + spacing * j);
+
+					color[pid] = cfloat4(vf[0], vf[1], vf[2], 1);
+					type[pid] = TYPE_CLOTH;
+					group[pid] = groupTmp;
+					mass[pid] = mp;
+					rest_density[pid] = density;
+					localid[pid] = i * j_max + j + offset;
+					for (int t = 0; t < hParam.maxtypenum; t++)
+						vol_frac[pid*hParam.maxtypenum + t] = vf[t];
+					adjacentIndex[pid] = vadj[i * j_max + j];
+					localid_counter[TYPE_DEFORMABLE]++;
+				}
+		}
+		else if (fluid_volumes[i].empty)
 		{
 			for (float x = xmin.x; x < xmax.x; x += spacing)
 				for (float y = xmin.y; y < xmax.y; y += spacing)
@@ -633,7 +702,7 @@ void MultiphaseSPHSolver::AddMultiphaseFluidVolumes() {
 			printf("Block No. %d, type: fluid, particle num: %d\n", i, addcount);
 			hParam.num_fluid_p += addcount;
 		}
-		else if (typeTmp==TYPE_DEFORMABLE) {
+		else if (typeTmp==TYPE_DEFORMABLE || typeTmp==TYPE_CLOTH) {
 			printf("Block No. %d, type: deformable, particle num: %d\n", i, addcount);
 			hParam.num_deformable_p += addcount;
 		}
@@ -815,6 +884,7 @@ void MultiphaseSPHSolver::SetupDeviceBuffer() {
 	// Deformable Solid
 	cudaMalloc(&device_data.strain_rate, maxpnum*sizeof(cmat3));
 	cudaMalloc(&device_data.cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.gradient, maxpnum * sizeof(cmat3));
 	cudaMalloc(&device_data.vel_right, maxpnum * sizeof(cfloat3));
 	cudaMalloc(&device_data.local_id, maxpnum*sizeof(int));
 	cudaMalloc(&device_data.neighborlist, hParam.num_deformable_p*NUM_NEIGHBOR*sizeof(int));
@@ -831,8 +901,11 @@ void MultiphaseSPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.p_this, maxpnum * sizeof(cfloat3));
 
 	cudaMalloc(&device_data.sorted_cauchy_stress, maxpnum*sizeof(cmat3));
+	cudaMalloc(&device_data.sorted_gradient, maxpnum * sizeof(cmat3));
 	cudaMalloc(&device_data.sorted_local_id, maxpnum*sizeof(int));
 
+	cudaMalloc(&device_data.adjacent_index, maxpnum * sizeof(adjacent));
+	cudaMalloc(&device_data.sorted_adjacent_index, maxpnum * sizeof(adjacent));
 
 
 	int glen = hParam.gridres.prod();

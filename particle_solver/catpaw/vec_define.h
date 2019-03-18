@@ -18,5 +18,5 @@ typedef vector<GLuint> vecu;
 typedef vector<cfloat3> vecf3;
 typedef vector<int> veci;
 typedef vector<cfloat4> vecf4;
-
+typedef vector<adjacent> vecadj;
 
