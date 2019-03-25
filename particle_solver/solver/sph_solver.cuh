@@ -69,6 +69,7 @@ struct SimParam_SPH {
 	//cloth
 	float kadj;
 	float kdiag;
+	float kbend;
 
 	//Switch
 	bool enable_dissolution;

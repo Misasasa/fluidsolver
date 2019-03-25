@@ -983,12 +983,6 @@ __global__ void updatePosition(SimData_SPH data, int num_particles) {
 	if (data.type[index]==TYPE_RIGID) return;
 
 	data.pos[index] += data.v_star[index] * dParam.dt;
-
-	if (data.type[index] == TYPE_CLOTH && data.pos[index].square() > 1)
-	{
-		printf("%f %f %f, %f %f %f\n", data.pos[index].x, data.pos[index].y, data.pos[index].z, data.v_star[index].x, data.v_star[index].y, data.v_star[index].z);
-	}
-
 }
 
 
@@ -1495,7 +1489,7 @@ __device__ void ApplyPressureCell_Multiphase(
 	
 	for (uint j = startIndex; j < endIndex; j++)
 	{
-		if (data.type[i] == TYPE_CLOTH && data.type[j] == TYPE_CLOTH)
+		/*if (data.type[i] == TYPE_CLOTH && data.type[j] == TYPE_CLOTH)
 		{
 			bool same = false;
 			for (int k = 0; k < 8; k++)
@@ -1509,7 +1503,7 @@ __device__ void ApplyPressureCell_Multiphase(
 			}
 			if (same)
 				continue;
-		}
+		}*/
 
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
@@ -2929,28 +2923,50 @@ __global__ void ComputeTensionWithP_Kernel(SimData_SPH data, int num_particles)
 
 	if (data.type[index] == TYPE_CLOTH)
 	{
-		cfloat3 tension(0, 0, 0);
+		
 		float ladj = dParam.spacing;
 		float ldiag = ladj * 1.4142;
+		float lbend = ladj * 2;
 
-		for (int neighbor_num = 0; neighbor_num < 8; neighbor_num++)
+		cfloat3 pos = data.pos[index] + data.v_star[index] * dParam.dt;
+		cfloat3 tension;
+
+		for (int iter = 0; iter < 10; iter++)
 		{
-			int neighbor = data.adjacent_index[index][neighbor_num];
-			if (neighbor == -1)
-				continue;
-			int j = data.indexTable[neighbor];
-			cfloat3 xij = data.pos[index] - data.pos[j];
-			float norm = xij.Norm();
-			if (neighbor_num < 4)
-				if (norm < ladj) continue;
-				else tension -= xij / norm * dParam.kadj * (norm - ladj);
-			else
-				if (norm < ldiag) continue;
-				else tension -= xij / norm * dParam.kdiag * (norm - ldiag);
+			tension = cfloat3(0, 0, 0);
+			for (int neighbor_num = 0; neighbor_num < 12; neighbor_num++)
+			{
+				int neighbor = data.adjacent_index[index][neighbor_num];
+				if (neighbor == -1)
+					continue;
+				int j = data.indexTable[neighbor];
+				cfloat3 xij = pos - data.pos[j];
+				float norm = xij.Norm();
+				if (neighbor_num < 4)
+				{
+					if (norm > ladj)
+						tension -= xij / norm * dParam.kadj * (norm - ladj);
+				}
+				else if (neighbor_num < 8)
+				{
+					if (norm > ldiag)
+						tension -= xij / norm * dParam.kdiag * (norm - ldiag);
+				}
+				else
+				{
+					if (norm > lbend)
+						tension -= xij / norm * dParam.kbend * (norm - lbend);
+				}
+			}
+			cfloat3 right = ((pos - data.pos[index]) / dParam.dt - data.v_star[index]) * data.mass[index] / dParam.dt;
+			if ((tension - right).square() < 1e-10)
+				break;
+			pos = data.pos[index] + (data.v_star[index] + tension * dParam.dt / data.mass[index]) * dParam.dt;
 		}
 		data.v_star[index] += tension / data.mass[index] * dParam.dt;
+		//if (data.v_star[index].Norm() > 5)
+		//	printf("duang! tension1 = %f %f %f\n\ttension2 = ", tension.x, tension.y, tension.z);
 	}
-
 }
 
 

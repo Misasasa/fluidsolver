@@ -840,6 +840,10 @@ struct adjacent
 	int downright;
 	int downleft;
 	int upleft;
+	int upup;
+	int downdown;
+	int leftleft;
+	int rightright;
 
 	HDFUNC int& operator[](int index)
 	{
@@ -853,6 +857,10 @@ struct adjacent
 		case 5: return downright;
 		case 6: return downleft;
 		case 7: return upleft;
+		case 8: return upup;
+		case 9: return downdown;
+		case 10: return leftleft;
+		case 11: return rightright;
 		}
 	}
 };

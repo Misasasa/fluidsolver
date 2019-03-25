@@ -393,7 +393,8 @@ void MultiphaseSPHSolver::ParseParam(char* xmlpath) {
 	reader.GetFloatN(hParam.heat_capacity, hParam.maxtypenum, "HeatCapacity");
 
 	hParam.kadj = 5;
-	hParam.kdiag = 10;
+	hParam.kdiag = 5;
+	hParam.kbend = 2;
 
 	loadFluidVolume(sceneElement, hParam.maxtypenum, fluid_volumes);
 
@@ -541,6 +542,10 @@ void MultiphaseSPHSolver::AddMultiphaseFluidVolumes() {
 					adj.upright = (i - 1) * j_max + j + 1 + offset;
 					adj.downleft = (i + 1) * j_max + j - 1 + offset;
 					adj.downright = (i + 1) * j_max + j + 1 + offset;
+					adj.upup = (i - 2) * j_max + j + offset;
+					adj.downdown = (i + 2) * j_max + j + offset;
+					adj.leftleft = i * j_max + j - 2 + offset;
+					adj.rightright = i * j_max + j + 2 + offset;
 
 					if (i == 0)
 						adj.up = adj.upleft = adj.upright = -1;
@@ -550,6 +555,14 @@ void MultiphaseSPHSolver::AddMultiphaseFluidVolumes() {
 						adj.left = adj.upleft = adj.downleft = -1;
 					if (j == j_max - 1)
 						adj.right = adj.upright = adj.downright = -1;
+					if (i <= 1)
+						adj.upup = -1;
+					if (i >= i_max - 2)
+						adj.downdown = -1;
+					if (j <= 1)
+						adj.leftleft = -1;
+					if (j >= j_max - 2)
+						adj.rightright = -1;
 
 					vadj.push_back(adj);
 				}
