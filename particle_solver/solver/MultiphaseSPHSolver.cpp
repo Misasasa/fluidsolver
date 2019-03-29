@@ -94,6 +94,9 @@ void MultiphaseSPHSolver::Sort() {
 	cudaMemcpy(device_data.gradient, device_data.sorted_gradient, numParticles * sizeof(cmat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, numParticles*sizeof(int), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.adjacent_index, device_data.sorted_adjacent_index, numParticles * sizeof(adjacent), cudaMemcpyDeviceToDevice);
+
+	//IISPH
+	cudaMemcpy(device_data.pressure, device_data.sorted_pressure, numParticles * sizeof(float), cudaMemcpyDeviceToDevice);
 }
 
 
@@ -167,6 +170,23 @@ void MultiphaseSPHSolver::SolveMultiphaseSPHRen() {
 	EffectiveMass(device_data, numParticles);
 }
 
+void MultiphaseSPHSolver::SolveIISPH()
+{
+	NonPressureForce_Multiphase(device_data, numParticles);
+	//ComputeTension(device_data, numParticles);
+
+	IISPHPredictDensity(device_data, numParticles);
+
+	IISPHSolvePressure(device_data, numParticles);
+
+	IISPHUpdate(device_data, numParticles);
+
+	Sort();
+	IISPHFactor(device_data, numParticles);
+
+	//UpdateSolidState(device_data, numParticles, 0);
+}
+
 
 
 void MultiphaseSPHSolver::Eval(const char* expression) {
@@ -180,6 +200,8 @@ void MultiphaseSPHSolver::Step() {
 
 	if (numParticles>0) {
 		switch (run_mode) {
+		case IISPH:
+			SolveIISPH(); break;
 		case MSPH:
 			SolveMultiphaseSPH(); break;
 		case MSPH_REN:
@@ -825,8 +847,21 @@ void MultiphaseSPHSolver::SetupMultiphaseSPHRen() {
 	//InitializeDeformable(device_data, numParticles);
 }
 
+void MultiphaseSPHSolver::SetupIISPH()
+{
+	SetupFluidScene();
+	run_mode = IISPH;
+
+	Sort();
+	EffectiveMass(device_data, numParticles);
+	IISPHFactor(device_data, numParticles);
+	RigidParticleVolume(device_data, numParticles);
+	InitializeDeformable(device_data, numParticles);
+}
+
 void MultiphaseSPHSolver::Setup() {
-	SetupMultiphaseSPH();
+	SetupIISPH();
+	//SetupMultiphaseSPH();
 	//SetupMultiphaseSPHRen();
 }
 
@@ -927,4 +962,15 @@ void MultiphaseSPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.particleIndex, maxpnum * sizeof(int));
 	cudaMalloc(&device_data.gridCellStart, glen * sizeof(int));
 	cudaMalloc(&device_data.gridCellEnd, glen * sizeof(int));
+
+	//IISPH
+	cudaMalloc(&device_data.dii, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&device_data.dijpjl, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&device_data.aii, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.density_star, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.pressure, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.sorted_pressure, maxpnum * sizeof(float));
+
+	cudaMemset(device_data.pressure, 0, maxpnum * sizeof(float));
+
 }

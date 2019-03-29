@@ -12,6 +12,7 @@
 #define DFSPH 1
 #define MSPH 2
 #define MSPH_REN 3
+#define IISPH 4
 
 class SPHSolver : public ParticleSolver {
 

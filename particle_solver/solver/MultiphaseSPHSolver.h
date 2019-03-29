@@ -30,6 +30,7 @@ public:
 	void Sort();
 	void SolveMultiphaseSPH(); //with DFSPH
 	void SolveMultiphaseSPHRen(); //with Ren et al. 13
+	void SolveIISPH();
 
 	void PhaseDiffusion_Host();
 
@@ -43,6 +44,7 @@ public:
 	void SetupMultiphaseSPH();
 	void AddMultiphaseFluidVolumes();
 	void SetupMultiphaseSPHRen();
+	void SetupIISPH();
 
 	/* Rigid bodies, deformables. */
 	void LoadPO(ParticleObject* po);

@@ -88,7 +88,7 @@ struct SimData_SPH {
 	int* uniqueId;
 	float* mass;
 	float* density;
-	float* pressure;
+	//float* pressure;
 	cfloat3* force;
 	
 	adjacent* adjacent_index;
@@ -177,6 +177,16 @@ struct SimData_SPH {
 	cmat3* s;
 	cmat3* u;
 	cmat3* v;
+
+	//IISPH
+	cfloat3* dii;
+	cfloat3* dijpjl;
+	float* aii;
+	float* pressure;
+	cfloat3* pressureForce;
+	float* density_star;
+
+	float* sorted_pressure;
 };
 
 
@@ -295,3 +305,12 @@ void HeatConduction(SimData_SPH data, int num_particles);
 
 void AdvectScriptObject(SimData_SPH data, int num_particles, cfloat3 vel);
 
+//IISPH
+
+void IISPHFactor(SimData_SPH data, int num_particles);
+
+void IISPHPredictDensity(SimData_SPH data, int num_particles);
+
+void IISPHSolvePressure(SimData_SPH data, int num_particles);
+
+void IISPHUpdate(SimData_SPH data, int num_particles);

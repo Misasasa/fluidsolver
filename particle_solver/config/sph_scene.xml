@@ -5,7 +5,7 @@
 	<VolMin> -0.4, -0.1, -0.4 </VolMin>
 	<VolMax>  0.4,  1,   0.4 </VolMax>
 	
-	<SceneId> 7 </SceneId>
+	<SceneId> 2 </SceneId>
 
 </Fluid>
 

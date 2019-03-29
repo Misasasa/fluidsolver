@@ -79,6 +79,9 @@ void SPHSolver::SortParticles() {
 	cudaMemcpy(device_data.gradient, device_data.sorted_gradient, numParticles * sizeof(cmat3), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.local_id, device_data.sorted_local_id, numParticles*sizeof(int), cudaMemcpyDeviceToDevice);
 	cudaMemcpy(device_data.adjacent_index, device_data.sorted_adjacent_index, numParticles * sizeof(adjacent), cudaMemcpyDeviceToDevice);
+
+	//IISPH
+	cudaMemcpy(device_data.pressure, device_data.sorted_pressure, numParticles * sizeof(float), cudaMemcpyDeviceToDevice);
 }
 
 void SPHSolver::SolveSPH() {
@@ -565,4 +568,12 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.particleIndex, maxpnum * sizeof(int));
 	cudaMalloc(&device_data.gridCellStart, glen * sizeof(int));
 	cudaMalloc(&device_data.gridCellEnd, glen * sizeof(int));
+
+	//IISPH
+	cudaMalloc(&device_data.dii, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&device_data.dijpjl, maxpnum * sizeof(cfloat3));
+	cudaMalloc(&device_data.aii, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.density_star, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.pressure, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.sorted_pressure, maxpnum * sizeof(float));
 }
