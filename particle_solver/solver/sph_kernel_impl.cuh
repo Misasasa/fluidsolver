@@ -62,9 +62,13 @@ __device__ uint calcGridHash(cint3 cell_indices)
 		cell_indices.z<0 || cell_indices.z >= dParam.gridres.z)
 		return GRID_UNDEF;
 
-	return cell_indices.y * dParam.gridres.x* dParam.gridres.z 
-		+ cell_indices.z*dParam.gridres.x 
+	uint ret = cell_indices.y * dParam.gridres.x* dParam.gridres.z
+		+ cell_indices.z*dParam.gridres.x
 		+ cell_indices.x;
+
+	if (ret > dParam.gridres.x * dParam.gridres.y * dParam.gridres.z)
+		return GRID_UNDEF;
+	return ret;
 }
 
 __device__ cint3 calcGridPos(cfloat3 p) {
@@ -3735,8 +3739,8 @@ __global__ void IISPHFactorKernel(SimData_SPH data, int num_particles) {
 					data);
 			}
 
-	if (density < data.restDensity[index])
-		density = data.restDensity[index];
+	//if (density < data.restDensity[index])
+	//	density = data.restDensity[index];
 
 	data.density[index] = density;
 
@@ -3764,7 +3768,6 @@ __device__ void IISPHPredictDensityCell(cint3 gridPos,
 	{
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
-		cfloat3 xji = xj - xi;
 		cfloat3 vij = data.v_star[i] - data.v_star[j];
 		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
 
@@ -3778,7 +3781,7 @@ __device__ void IISPHPredictDensityCell(cint3 gridPos,
 		case TYPE_FLUID:
 			mass_j = data.mass[i];
 			density += dParam.dt * mass_j * vij.dot(nablaw);
-			dji = KernelGradient_Cubic(sr / 2, xji) * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
+			dji = KernelGradient_Cubic(sr / 2, xij) * -1 * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
 			aii += mass_j * (data.dii[i] - dji).dot(nablaw);
 			break;
 
@@ -3786,14 +3789,14 @@ __device__ void IISPHPredictDensityCell(cint3 gridPos,
 		case TYPE_CLOTH:
 			mass_j = data.mass[i];
 			density += dParam.dt * mass_j * vij.dot(nablaw);
-			dji = KernelGradient_Cubic(sr / 2, xji) * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
+			dji = KernelGradient_Cubic(sr / 2, xij) * -1 * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
 			aii += mass_j * (data.dii[i] - dji).dot(nablaw);
 			break;
 
 		case TYPE_RIGID:
 			mass_j = data.restDensity[j] * data.restDensity[i];
 			density += dParam.dt * mass_j * data.v_star[i].dot(nablaw);
-			dji = KernelGradient_Cubic(sr / 2, xji) * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
+			dji = KernelGradient_Cubic(sr / 2, xij) * -1 * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
 			aii += mass_j * (data.dii[i] - dji).dot(nablaw);
 			break;
 
@@ -3824,9 +3827,8 @@ __global__ void IISPHPredictDensityKernel(SimData_SPH data, int num_particles) {
 			}
 
 	data.density_star[index] = density;
-
-	float denom = 1 / (aii + 1e-5);
-	data.aii[index] = denom;
+	//printf("%f\n", aii);
+	data.aii[index] = aii;
 
 }
 
@@ -3918,7 +3920,6 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 	{
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
-		cfloat3 xji = xj - xi;
 		cfloat3 vij = data.v_star[i] - data.v_star[j];
 		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
 
@@ -3932,7 +3933,7 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 		switch (data.type[j]) {
 		case TYPE_FLUID:
 			mass_j = data.mass[i];
-			dji = KernelGradient_Cubic(sr / 2, xji) * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
+			dji = KernelGradient_Cubic(sr / 2, xij) * -1 * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
 			longthing = data.dijpjl[i] - data.dii[j] * data.pressure[j] - data.dijpjl[j] + dji * data.pressure[i];
 			longlongthing += mass_j * longthing.dot(nablaw);
 			break;
@@ -3940,7 +3941,7 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 		case TYPE_DEFORMABLE:
 		case TYPE_CLOTH:
 			mass_j = data.mass[i];
-			dji = KernelGradient_Cubic(sr / 2, xji) * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
+			dji = KernelGradient_Cubic(sr / 2, xij) * -1 * mass_j / data.density[i] / data.density[i] * dParam.dt * dParam.dt * -1;
 			longthing = data.dijpjl[i] - data.dii[j] * data.pressure[j] - data.dijpjl[j] + dji * data.pressure[i];
 			longlongthing += mass_j * longthing.dot(nablaw);
 			break;
@@ -3958,7 +3959,11 @@ __global__ void CalcNewPressureKernel(SimData_SPH data, int num_particles, float
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 
-	if (data.type[index] == TYPE_RIGID) return;
+	if (data.type[index] == TYPE_RIGID)
+	{
+		err[index] = 0;
+		return;
+	}
 
 	cfloat3 pos = data.pos[index];
 	cint3 gridPos = calcGridPos(pos);
@@ -3972,15 +3977,86 @@ __global__ void CalcNewPressureKernel(SimData_SPH data, int num_particles, float
 				CalcNewPressureCell(nPos, index, pos, longlongthing, data);
 			}
 	
-	data.pressure[index] /= 2;
-	data.pressure[index] += data.aii[index] * (data.restDensity[index] - data.density_star[index] - longlongthing) / 2;
+	float prevPressure = data.pressure[index];
+	float density_corr = data.density_star[index] + longlongthing;
+	if (abs(data.aii[index]) > 1e-8)
+		data.pressure[index] = 0.5 * prevPressure + 0.5 * (data.restDensity[index] - density_corr) / data.aii[index];
+	else
+		data.pressure[index] = 0;
 	if (data.pressure[index] < 0)
 		data.pressure[index] = 0;
 	
-	err[index] = data.restDensity[index] - data.density_star[index] - longlongthing;
-	//printf("%f\n", err[index]);
-	if (err[index] < 0)
-		err[index] = 0;
+	density_corr += prevPressure * data.aii[index];
+	err[index] = density_corr;
+}
+
+__device__ void CalcPressureForceCell(cint3 gridPos,
+	int i,
+	cfloat3 xi,
+	cfloat3& pressureForce,
+	SimData_SPH data)
+{
+	uint gridHash = calcGridHash(gridPos);
+	if (gridHash == GRID_UNDEF) return;
+	uint startIndex = data.gridCellStart[gridHash];
+	float sr = dParam.smoothradius;
+	float sr2 = sr*sr;
+	if (startIndex == 0xffffffff) return;
+
+	uint endIndex = data.gridCellEnd[gridHash];
+
+	for (uint j = startIndex; j < endIndex; j++)
+	{
+		cfloat3 xj = data.pos[j];
+		cfloat3 xij = xi - xj;
+		cfloat3 vij = data.v_star[i] - data.v_star[j];
+		float d2 = xij.x*xij.x + xij.y*xij.y + xij.z*xij.z;
+
+		if (d2 >= sr2) continue;
+
+		float c2 = sr2 - d2;
+		cfloat3 nablaw = KernelGradient_Cubic(sr / 2, xij);
+		float mass_j;
+		cfloat3 dji;
+		cfloat3 longthing;
+		switch (data.type[j]) {
+		case TYPE_FLUID:
+			mass_j = data.mass[i];
+			pressureForce += nablaw * -1 * mass_j * mass_j * (data.pressure[i] / data.density[i] / data.density[i] + data.pressure[j] / data.density[j] / data.density[j]);
+			break;
+
+		case TYPE_DEFORMABLE:
+		case TYPE_CLOTH:
+			mass_j = data.mass[i];
+			pressureForce += nablaw * -1 * mass_j * mass_j * (data.pressure[i] / data.density[i] / data.density[i] + data.pressure[j] / data.density[j] / data.density[j]);
+			break;
+
+		case TYPE_RIGID:
+			mass_j = data.restDensity[j] * data.restDensity[i];
+			pressureForce += nablaw * -1 * data.mass[i] * mass_j * (data.pressure[i] / data.density[i] / data.density[i]);
+			break;
+
+		}
+	}
+}
+
+__global__ void CalcPressureForceKernel(SimData_SPH data, int num_particles) {
+	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (index >= num_particles) return;
+
+	if (data.type[index] == TYPE_RIGID) return;
+
+	cfloat3 pressureForce(0, 0, 0);
+
+	cfloat3 pos = data.pos[index];
+	cint3 gridPos = calcGridPos(pos);
+	for (int z = -1; z <= 1; z++)
+		for (int y = -1; y <= 1; y++)
+			for (int x = -1; x <= 1; x++) {
+				cint3 nPos = gridPos + cint3(x, y, z);
+				CalcPressureForceCell(nPos, index, pos, pressureForce, data);
+			}
+	data.pressureForce[index] = pressureForce;
 }
 
 __global__ void IISPHUpdateKernel(SimData_SPH data, int num_particles) {
@@ -3989,8 +4065,7 @@ __global__ void IISPHUpdateKernel(SimData_SPH data, int num_particles) {
 
 	if (data.type[index] == TYPE_RIGID) return;
 
-	cfloat3 pressureForce = (data.dijpjl[index] + data.dii[index] * data.pressure[index]) * data.mass[index] / dParam.dt / dParam.dt;
-	data.vel[index] = data.v_star[index] + pressureForce * dParam.dt / data.mass[index];
+	data.vel[index] = data.v_star[index] + data.pressureForce[index] * dParam.dt / data.mass[index];
 	data.pos[index] += data.vel[index] * dParam.dt;
 
 }

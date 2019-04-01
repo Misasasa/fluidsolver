@@ -173,7 +173,7 @@ void MultiphaseSPHSolver::SolveMultiphaseSPHRen() {
 void MultiphaseSPHSolver::SolveIISPH()
 {
 	NonPressureForce_Multiphase(device_data, numParticles);
-	//ComputeTension(device_data, numParticles);
+	ComputeTension(device_data, numParticles);
 
 	IISPHPredictDensity(device_data, numParticles);
 
@@ -184,7 +184,7 @@ void MultiphaseSPHSolver::SolveIISPH()
 	Sort();
 	IISPHFactor(device_data, numParticles);
 
-	//UpdateSolidState(device_data, numParticles, 0);
+	UpdateSolidState(device_data, numParticles, 0);
 }
 
 
@@ -970,6 +970,7 @@ void MultiphaseSPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.density_star, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.pressure, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.sorted_pressure, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.pressureForce, maxpnum * sizeof(cfloat3));
 
 	cudaMemset(device_data.pressure, 0, maxpnum * sizeof(float));
 

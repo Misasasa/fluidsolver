@@ -247,20 +247,12 @@
 	<DensityArray> 500,1000,1000 </DensityArray>
 	<ViscosityArray> 1000,1000,1000 </ViscosityArray>
 	
-	<!--Vol>
+	<Vol>
 		<VolMin>	-0.1,  0.01,  -0.06	</VolMin>
 		<VolMax>	0.1,  0.10,  0.06	</VolMax>
 		<VolFrac>   1,  0,  0 </VolFrac>
 		<Group> 0 </Group>
 		<Type>deformable</Type>
-	</Vol-->
-
-	<Vol>
-		<VolMin>	-0.1,  0.0,  -0.1	</VolMin>
-		<VolMax>	0.1,  0.155,  0.1	</VolMax>
-		<VolFrac>   0,  0,  1 </VolFrac>
-		<Group> 0 </Group>
-		<Type>fluid</Type>
 	</Vol>
 
 	<SurfaceTension> 100 </SurfaceTension>

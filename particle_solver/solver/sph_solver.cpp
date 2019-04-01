@@ -576,4 +576,5 @@ void SPHSolver::SetupDeviceBuffer() {
 	cudaMalloc(&device_data.density_star, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.pressure, maxpnum * sizeof(float));
 	cudaMalloc(&device_data.sorted_pressure, maxpnum * sizeof(float));
+	cudaMalloc(&device_data.pressureForce, maxpnum * sizeof(cfloat3));
 }

@@ -1410,6 +1410,9 @@ void IISPHSolvePressure(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
+	printf("%d\n", num_particles);
+
+	float err_sum = 0.0f;
 	for (int iter = 0; iter < 10; iter++) //temp 10
 	{
 		CalcDIJPJLKernel << < num_blocks, num_threads >> > (data, num_particles);
@@ -1428,15 +1431,17 @@ void IISPHSolvePressure(SimData_SPH data, int num_particles) {
 		float* err_host = new float[num_particles];
 		cudaMemcpy(err_host, err, sizeof(float) * num_particles, cudaMemcpyDeviceToHost);
 
-		float err_sum = 0.0f;
+		float last_err_sum = err_sum;
+		err_sum = 0.0f;
 		for (int i = 0; i < num_particles; i++)
 			err_sum += err_host[i];
 		delete[] err_host;
-		if (err_sum < 1e-5)
+		err_sum /= num_particles;
+
+		//printf("%d %f\n", iter, err_sum);
+		if (abs(err_sum) < 1e-6 || abs(err_sum - last_err_sum) < 1e-6)
 			break;
 	}
-
-	
 
 }
 
@@ -1444,8 +1449,12 @@ void IISPHUpdate(SimData_SPH data, int num_particles) {
 	uint num_threads, num_blocks;
 	computeGridSize(num_particles, 256, num_blocks, num_threads);
 
+	CalcPressureForceKernel << < num_blocks, num_threads >> > (data, num_particles);
+	cudaThreadSynchronize();
+
 	IISPHUpdateKernel << < num_blocks, num_threads >> > (data, num_particles);
 	cudaThreadSynchronize();
+
 	getLastCudaError("Kernel failed: compute df alpha multiphase");
 
 }
