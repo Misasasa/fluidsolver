@@ -3905,7 +3905,8 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 	int i,
 	cfloat3 xi,
 	float& longlongthing,
-	SimData_SPH data)
+	SimData_SPH data,
+	int particleNum)
 {
 	uint gridHash = calcGridHash(gridPos);
 	if (gridHash == GRID_UNDEF) return;
@@ -3918,6 +3919,8 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 
 	for (uint j = startIndex; j < endIndex; j++)
 	{
+		if (j >= particleNum)
+			break;
 		cfloat3 xj = data.pos[j];
 		cfloat3 xij = xi - xj;
 		cfloat3 vij = data.v_star[i] - data.v_star[j];
@@ -3955,13 +3958,13 @@ __device__ void CalcNewPressureCell(cint3 gridPos,
 	}
 }
 
-__global__ void CalcNewPressureKernel(SimData_SPH data, int num_particles, float* err) {
+__global__ void CalcNewPressureKernel(SimData_SPH data, int num_particles) {
 	uint index = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (index >= num_particles) return;
 
 	if (data.type[index] == TYPE_RIGID)
 	{
-		err[index] = 0;
+		data.error[index] = 0;
 		return;
 	}
 
@@ -3974,20 +3977,22 @@ __global__ void CalcNewPressureKernel(SimData_SPH data, int num_particles, float
 		for (int y = -1; y <= 1; y++)
 			for (int x = -1; x <= 1; x++) {
 				cint3 nPos = gridPos + cint3(x, y, z);
-				CalcNewPressureCell(nPos, index, pos, longlongthing, data);
+				CalcNewPressureCell(nPos, index, pos, longlongthing, data, num_particles);
 			}
 	
 	float prevPressure = data.pressure[index];
 	float density_corr = data.density_star[index] + longlongthing;
 	if (abs(data.aii[index]) > 1e-8)
+	{
 		data.pressure[index] = 0.5 * prevPressure + 0.5 * (data.restDensity[index] - density_corr) / data.aii[index];
+		if (data.pressure[index] < 0)
+			data.pressure[index] = 0;
+	}
 	else
 		data.pressure[index] = 0;
-	if (data.pressure[index] < 0)
-		data.pressure[index] = 0;
-	
+
 	density_corr += prevPressure * data.aii[index];
-	err[index] = density_corr;
+	data.error[index] = density_corr;
 }
 
 __device__ void CalcPressureForceCell(cint3 gridPos,

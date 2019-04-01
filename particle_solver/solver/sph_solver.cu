@@ -1420,16 +1420,13 @@ void IISPHSolvePressure(SimData_SPH data, int num_particles) {
 
 		getLastCudaError("Kernel failed: CalcDIJPJLKernel");
 
-		float* err;
-		cudaMalloc(&err, sizeof(float) * num_particles);
-
-		CalcNewPressureKernel << < num_blocks, num_threads >> > (data, num_particles, err);
+		CalcNewPressureKernel << < num_blocks, num_threads >> > (data, num_particles);
 		cudaThreadSynchronize();
 
 		getLastCudaError("Kernel failed: CalcNewPressureKernel");
 
 		float* err_host = new float[num_particles];
-		cudaMemcpy(err_host, err, sizeof(float) * num_particles, cudaMemcpyDeviceToHost);
+		cudaMemcpy(err_host, data.error, sizeof(float) * num_particles, cudaMemcpyDeviceToHost);
 
 		float last_err_sum = err_sum;
 		err_sum = 0.0f;
